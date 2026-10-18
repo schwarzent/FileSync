@@ -1,0 +1,22 @@
+using FileSync.Tests;
+
+using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(50));
+var workspace = Path.GetFullPath(args.Single());
+var root = Path.Combine(workspace, ".test-runs", Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(root);
+Console.WriteLine($"隔离验证目录：{root}");
+SecurityTests.Paths(root);
+await using var first = new TestNode(Path.Combine(root, "node-a"));
+await using var second = new TestNode(Path.Combine(root, "node-b"));
+await first.App.StartAsync(deadline.Token);
+await second.App.StartAsync(deadline.Token);
+await SecurityTests.Http(first);
+await SecurityTests.Certificates(first, second, deadline.Token);
+await first.PairTo(second, deadline.Token);
+Check.True(first.Store.Current.Peers.Count == 1 && second.Store.Current.Peers.Count == 1, "双方持久化配对身份");
+await SyncTests.Run(first, second, root, deadline.Token);
+second.Store.Update(s => s with { Peers = [] });
+using var connection = first.Client.Connect(first.Store.Current.Peers.Single());
+using var revoked = await connection.GetAsync("peer/shares", deadline.Token);
+Check.True((int)revoked.StatusCode == 403, "撤销配对立即阻止原证书访问");
+Console.WriteLine("全部验证通过。");

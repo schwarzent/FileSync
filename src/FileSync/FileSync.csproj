@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>FileSync</AssemblyName>
+    <RootNamespace>FileSync</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot/**/*" />
+    <Content Update="wwwroot/**/*" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+</Project>
