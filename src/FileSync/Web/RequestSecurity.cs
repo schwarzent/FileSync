@@ -1,11 +1,11 @@
 using System.Net;
 using System.Security.Cryptography;
 using FileSync.Core;
-using FileSync.Security;
+using FileSync.Network;
 
 namespace FileSync.Web;
 
-public sealed class RequestSecurity(AppOptions options, StateStore store, ILogger<RequestSecurity> logger)
+public sealed class RequestSecurity(AppOptions options, StateStore store, SecureTransport transport, ILogger<RequestSecurity> logger)
 {
     public string SessionToken { get; } = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
     public string Origin => $"http://127.0.0.1:{options.UiPort}";
@@ -18,8 +18,8 @@ public sealed class RequestSecurity(AppOptions options, StateStore store, ILogge
             context.Response.Headers["Referrer-Policy"] = "no-referrer";
             context.Response.Headers.ContentSecurityPolicy = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
             context.Response.Headers.CacheControl = "no-store";
-            if (context.Connection.LocalPort == options.UiPort) AuthorizeLocal(context);
-            else await AuthorizePeer(context);
+            if (context.Request.Path.StartsWithSegments("/peer")) AuthorizePeer(context);
+            else AuthorizeLocal(context);
             await next(context);
         }
         catch (Exception error) when (!context.Response.HasStarted)
@@ -50,13 +50,13 @@ public sealed class RequestSecurity(AppOptions options, StateStore store, ILogge
             throw new UserError("本机会话无效，请刷新页面。", 403);
     }
 
-    private async Task AuthorizePeer(HttpContext context)
+    private void AuthorizePeer(HttpContext context)
     {
-        if (!context.Request.Path.StartsWithSegments("/peer")) throw new UserError("接口不存在。", 404);
-        var certificate = await context.Connection.GetClientCertificateAsync(context.RequestAborted);
-        if (!DeviceIdentity.Valid(certificate)) throw new UserError("设备证书无效。", 403);
+        if (context.Request.Headers["X-FileSync-Bridge"] != transport.Token)
+            throw new UserError("传输接口需要安全通信授权。", 404);
+        var fingerprint = context.Request.Headers["X-FileSync-Fingerprint"].ToString();
         if (context.Request.Path == "/peer/pair") return;
-        if (!store.Current.Peers.Any(p => p.Id == DeviceIdentity.Fingerprint(certificate!)))
+        if (!store.Current.Peers.Any(p => p.Id == fingerprint))
             throw new UserError("设备未配对或授权已撤销。", 403);
     }
 }

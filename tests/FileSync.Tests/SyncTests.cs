@@ -34,7 +34,9 @@ public static class SyncTests
         Check.True(FileScanner.Equal(before, await scanner.Scan(target, token)), "撤销恢复被删除和覆盖的文件及原始目录时间");
         await Drift(local, profile, source, target, token);
         await TypeChanges(local, profile, source, target, token);
+        await CaseChanges(local, profile, source, target, token);
         await Recovery(local, profile, token);
+        await InstalledRecovery(local, profile, token);
     }
 
     private static void Populate(string source, string target)
@@ -98,9 +100,43 @@ public static class SyncTests
         JsonFiles.Write(Path.Combine(vault, "plan.json"), plan);
         JsonFiles.Write(node.Store.RevisionPath(plan.Id), new Revision(plan.Id, profile.Id, profile.Name, "writing", DateTime.UtcNow, plan.Changes));
         var files = new TransactionFiles(node.Store);
+        var deleted = plan.Changes.First(c => c.Kind == "delete" && c.Before is { Directory: false });
+        var duplicatePath = PathPolicy.Resolve(profile.TargetPath, deleted.Path);
+        var duplicateContent = File.ReadAllBytes(duplicatePath);
         files.Archive(plan);
+        File.WriteAllBytes(duplicatePath, duplicateContent);
         await Check.Reject(() => node.Engine.Preview(profile.Id, token), "中断事务需先恢复，禁止继续同步");
         await node.Engine.Recover(plan.Id, token);
-        Check.True(FileScanner.Equal(plan.Local, await new FileScanner().Scan(profile.TargetPath, token)), "中断在文件归档后可恢复原始状态");
+        Check.True(FileScanner.Equal(plan.Local, await new FileScanner().Scan(profile.TargetPath, token)), "归档后中断、原文件与归档重复时仍可恢复");
+    }
+
+    private static async Task CaseChanges(TestNode node, Profile profile, string source, string target, CancellationToken token)
+    {
+        Directory.CreateDirectory(Path.Combine(source, "FolderCase"));
+        Directory.CreateDirectory(Path.Combine(target, "foldercase"));
+        File.WriteAllText(Path.Combine(source, "FolderCase", "Item.TXT"), "同样内容");
+        File.WriteAllText(Path.Combine(target, "foldercase", "item.txt"), "同样内容");
+        var scanner = new FileScanner();
+        var before = await scanner.Scan(target, token);
+        var plan = await node.Engine.Preview(profile.Id, token);
+        await node.Engine.Execute(plan.Id, token);
+        Check.True(FileScanner.Equal(await scanner.Scan(source, token), await scanner.Scan(target, token)), "正确同步仅大小写变化的文件与目录名称");
+        await node.Engine.Undo(plan.Id, token);
+        Check.True(FileScanner.Equal(before, await scanner.Scan(target, token)), "大小写变化后可以完整撤销");
+    }
+
+    private static async Task InstalledRecovery(TestNode node, Profile profile, CancellationToken token)
+    {
+        var plan = await node.Engine.Preview(profile.Id, token);
+        var files = new TransactionFiles(node.Store);
+        foreach (var change in plan.Changes.Where(c => c.After is { Directory: false } && c.Kind != "metadata"))
+            await node.Client.Download(new(profile, change.After!, files.Stage(plan, change.After!), _ => { }), token);
+        JsonFiles.Write(Path.Combine(node.Store.VaultPath(plan.Id), "plan.json"), plan);
+        JsonFiles.Write(node.Store.RevisionPath(plan.Id), new Revision(plan.Id, profile.Id, profile.Name, "writing", DateTime.UtcNow, plan.Changes));
+        files.Archive(plan);
+        files.Install(plan);
+        files.Rollback(plan);
+        await node.Engine.Recover(plan.Id, token);
+        Check.True(FileScanner.Equal(plan.Local, await new FileScanner().Scan(profile.TargetPath, token)), "文件安装及撤销后再次中断，重复恢复保持正确");
     }
 }

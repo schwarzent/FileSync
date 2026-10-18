@@ -53,6 +53,8 @@ public sealed class FileScanner
 
     public static void Validate(Manifest manifest, string target)
     {
+        if (manifest.RootModifiedTicks < 0 || manifest.RootModifiedTicks > DateTime.MaxValue.Ticks)
+            throw new UserError("远端根目录时间无效。");
         var paths = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in manifest.Entries)
         {

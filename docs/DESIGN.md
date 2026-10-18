@@ -14,7 +14,8 @@ Windows 10/11，本地浏览器界面。每条同步任务从指定设备的已�
 
 - 局域网接口仅 HTTPS，TLS 1.2/1.3。每台设备生成独立自签名证书，配对后双方按 SHA-256 证书指纹验证，每次请求要求客户端证书。
 - 配对邀请包含随机 256 位一次性密钥和服务器证书指纹，5 分钟过期；通过可信渠道在两台设备间复制，勿发给无关人员。
-- 私钥通过 Windows 当前用户 DPAPI 加密，不安装系统信任证书。撤销配对后立即禁止该设备访问。
+- 私钥通过 Windows 当前用户 DPAPI 加密，不安装系统信任证书。使用 Go 标准库 TLS 进程避免 Windows Schannel 对内存私钥的限制，私钥经匿名管道传递，明文不写入磁盘。该进程嵌入主程序，仅在程序数据目录提取运行，父进程管道关闭后退出。撤销配对后立即禁止该设备访问。
+- TLS 进程与业务进程仅经回环接口通信，独立随机凭据认证每次内部请求；远端不能注入设备身份头或调用本机管理 API。
 - UDP 广播只发现设备，不能授权访问；发现信息不作为证书信任依据。
 - 本地管理界面只监听回环地址，校验 Host、Origin 与会话请求头，远端 HTTPS 端口不提供管理 API。
 - 源文件夹只允许已配对设备读取；不暴露任意远端路径，也不接受远端写入。
@@ -27,5 +28,7 @@ Windows 10/11，本地浏览器界面。每条同步任务从指定设备的已�
 
 - [ASP.NET Core 客户端证书](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/certauth?view=aspnetcore-8.0)
 - [Windows DPAPI](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata)
+- [Go 标准库 TLS](https://pkg.go.dev/crypto/tls)
+- [Schannel 内存私钥限制](https://learn.microsoft.com/en-us/dotnet/core/extensions/sslstream-troubleshooting)
 
 这些机制减少未授权访问与传输篡改风险；实际防火墙规则和跨机网络行为仍需真实 Windows 局域网验收。

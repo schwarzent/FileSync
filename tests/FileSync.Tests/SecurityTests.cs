@@ -43,7 +43,8 @@ public static class SecurityTests
     public static async Task Certificates(TestNode local, TestNode remote, CancellationToken token)
     {
         using var wrong = local.Client.Connect("127.0.0.1", remote.Options.PeerPort, new string('0', 64));
-        await Check.Reject(async () => { using var result = await wrong.GetAsync("peer/shares", token); }, "拒绝服务器证书指纹不匹配");
+        using var wrongResponse = await wrong.GetAsync("peer/shares", token);
+        Check.True(wrongResponse.StatusCode == HttpStatusCode.BadGateway, "拒绝服务器证书指纹不匹配");
         using var unpaired = local.Client.Connect("127.0.0.1", remote.Options.PeerPort, remote.Identity.Id);
         using var forbidden = await unpaired.GetAsync("peer/shares", token);
         Check.True(forbidden.StatusCode == HttpStatusCode.Forbidden, "未配对客户端证书无法读取共享");

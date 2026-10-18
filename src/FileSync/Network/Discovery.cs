@@ -27,6 +27,7 @@ public sealed class Discovery(StateStore store, DeviceIdentity identity, ILogger
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!Enabled) return;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         try
         {
             using var socket = new UdpClient(AddressFamily.InterNetwork);
@@ -34,7 +35,11 @@ public sealed class Discovery(StateStore store, DeviceIdentity identity, ILogger
             socket.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             socket.Client.Bind(new IPEndPoint(IPAddress.Any, NetworkPolicy.DiscoveryPort));
             socket.EnableBroadcast = true;
-            await Task.WhenAll(Receive(socket, stoppingToken), Announce(socket, stoppingToken));
+            var receive = Receive(socket, cancellation.Token);
+            var announce = Announce(socket, cancellation.Token);
+            await Task.WhenAny(receive, announce);
+            await cancellation.CancelAsync();
+            await Task.WhenAll(receive, announce);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
         catch (SocketException error)
@@ -63,7 +68,7 @@ public sealed class Discovery(StateStore store, DeviceIdentity identity, ILogger
             try
             {
                 var device = JsonSerializer.Deserialize<Announcement>(packet.Buffer);
-                if (device is null || device.Protocol != "filesync/1" || device.Id == identity.Id ||
+                if (device is null || device.Id is null || device.Name is null || device.Protocol != "filesync/1" || device.Id == identity.Id ||
                     device.Id.Length != 64 || !device.Id.All(Uri.IsHexDigit) || device.Name.Length > 80) continue;
                 var address = NetworkPolicy.Address(packet.RemoteEndPoint.Address.ToString()).ToString();
                 devices[device.Id] = new(device.Id, device.Name, address, NetworkPolicy.Port(device.Port), DateTime.UtcNow);

@@ -1,5 +1,5 @@
 #requires -Version 7.0
-param([string]$Dotnet = 'dotnet')
+param([string]$Dotnet = 'dotnet', [string]$Go = 'go')
 $ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSVersion.Major -ne 7) { throw '必须使用 PowerShell 7' }
 $workspacePath = Split-Path -Parent $PSScriptRoot
@@ -7,8 +7,22 @@ Set-Location -LiteralPath $workspacePath
 $env:DOTNET_CLI_HOME = Join-Path $workspacePath '.artifacts/cli'
 $env:DOTNET_NOLOGO = '1'
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+$env:DOTNET_ADD_GLOBAL_TOOLS_TO_PATH = '0'
+$testAppData = $env:APPDATA
+try {
+    $env:APPDATA = Join-Path $workspacePath '.artifacts/go-config'
+    $env:GOENV = 'off'
+    $env:GOTOOLCHAIN = 'local'
+    $env:GOCACHE = Join-Path $workspacePath '.artifacts/go-cache'
+    $env:GOPATH = Join-Path $workspacePath '.artifacts/go-path'
+    $env:GOTMPDIR = Join-Path $workspacePath '.artifacts/tmp'
+    New-Item -ItemType Directory -Path $env:GOTMPDIR -Force | Out-Null
+    & $Go -C (Join-Path $workspacePath 'src/Transport') test -timeout 60s -v
+    if ($LASTEXITCODE -ne 0) { throw '安全通信组件测试失败' }
+}
+finally { $env:APPDATA = $testAppData }
 $testProject = Join-Path $workspacePath 'tests/FileSync.Tests/FileSync.Tests.csproj'
-& $Dotnet build $testProject --nologo --verbosity minimal
+& $Dotnet build $testProject --nologo --verbosity minimal "-p:GoExecutable=$Go"
 if ($LASTEXITCODE -ne 0) { throw '测试项目编译失败' }
 $outputPath = Join-Path $workspacePath ('.test-runs/logs-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $outputPath -Force | Out-Null

@@ -51,7 +51,8 @@ function renderProgress() {
   node.hidden = !state.busy || progress.phase === 'idle';
   node.replaceChildren(el('strong', {}, phases[progress.phase] || progress.phase), el('p', {}, progress.path || '请保持两台设备在线'),
     el('progress', progress.totalBytes ? { value: progress.bytes, max: progress.totalBytes } : {}),
-    el('p', {}, progress.totalBytes ? `${bytes(progress.bytes)} / ${bytes(progress.totalBytes)}` : '正在处理…'));
+    el('p', {}, progress.totalBytes ? `${bytes(progress.bytes)} / ${bytes(progress.totalBytes)}` : '正在处理…'),
+    progress.phase !== 'writing' ? button('取消操作', act(() => api('/cancel', {})), { class: 'text', icon: 'close' }) : null);
 }
 
 async function refresh() {
@@ -59,10 +60,14 @@ async function refresh() {
   refreshing = (async () => {
     clearTimeout(timer);
     const wasBusy = state?.busy;
+    const previousSettings = state ? JSON.stringify(state.settings) : null;
+    const previousHistory = JSON.stringify(context.history);
     state = await api('/status');
     if (!state.busy || currentPage === 'history') context.history = await api('/history');
     if (wasBusy && !state.busy && !localOperation) toast('操作已结束，请查看版本记录。');
-    render();
+    if (previousSettings !== JSON.stringify(state.settings) || previousHistory !== JSON.stringify(context.history) ||
+        wasBusy !== state.busy || currentPage === 'devices') render();
+    else renderProgress();
     schedule();
   })();
   try { await refreshing; }

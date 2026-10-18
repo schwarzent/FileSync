@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using FileSync.Web;
 
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
 if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("FileSync 目前仅支持 Windows。");
 var options = AppOptions.Parse(args);
 await using var app = AppHost.Build(options);

@@ -25,6 +25,7 @@ public static class LocalRoutes
         app.MapPost("/api/profiles/{id}/preview", (string id, SyncEngine engine, CancellationToken token) => engine.Preview(id, token));
         app.MapPost("/api/plans/{id}/execute", (string id, SyncEngine engine, CancellationToken token) => engine.Execute(id, token));
         app.MapGet("/api/history", (StateStore store) => store.History());
+        app.MapPost("/api/cancel", (SyncEngine engine) => engine.Cancel());
         app.MapPost("/api/history/{id}/undo", (string id, SyncEngine engine, CancellationToken token) => engine.Undo(id, token));
         app.MapPost("/api/history/{id}/recover", (string id, SyncEngine engine, CancellationToken token) => engine.Recover(id, token));
         ConfigurationRoutes.Map(app);

@@ -7,7 +7,7 @@ public static class ConfigurationRoutes
 {
     private sealed record NameRequest(string Name);
     private sealed record ShareRequest(string Name, string Path);
-    private sealed record ProfileRequest(string? Id, string Name, string PeerId, string ShareId, string TargetPath, string? BackupPath);
+    private sealed record ProfileRequest(string? Id, string Name, string PeerId, string ShareId, string TargetPath, string? BackupPath, string? SourceName);
 
     public static void Map(WebApplication app)
     {
@@ -44,7 +44,8 @@ public static class ConfigurationRoutes
         if (!Directory.Exists(target)) throw new UserError("目标文件夹不存在，请先创建或选择已有文件夹。");
         var profile = new Profile(request.Id is null ? StateStore.NewId() : StateStore.SafeId(request.Id),
             Name(request.Name), request.PeerId, StateStore.SafeId(request.ShareId), target,
-            string.IsNullOrWhiteSpace(request.BackupPath) ? null : PathPolicy.Root(request.BackupPath));
+            string.IsNullOrWhiteSpace(request.BackupPath) ? null : PathPolicy.Root(request.BackupPath))
+        { SourceName = request.SourceName };
         return store.Update(s => s with { Profiles = s.Profiles.Where(x => x.Id != profile.Id).Append(profile).ToArray() });
     }
 

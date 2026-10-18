@@ -1,6 +1,5 @@
 using System.Net.Http.Json;
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using FileSync.Core;
@@ -27,9 +26,9 @@ public sealed class Pairing(StateStore store, DeviceIdentity identity, PeerClien
         return new { code = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(invite, JsonFiles.Options)), expiresUtc = expires };
     }
 
-    public PairResponse Accept(PairRequest request, X509Certificate2 cert, string address, int ownPort)
+    public PairResponse Accept(PairRequest request, string fingerprint, string address, int ownPort)
     {
-        if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 80 || request.Secret.Length != 64)
+        if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 80 || request.Secret?.Length != 64)
             throw new UserError("配对请求无效。");
         NetworkPolicy.Address(address);
         NetworkPolicy.Port(request.Port);
@@ -38,7 +37,7 @@ public sealed class Pairing(StateStore store, DeviceIdentity identity, PeerClien
             var hash = SHA256.HashData(Encoding.UTF8.GetBytes(request.Secret));
             if (secretHash is null || DateTime.UtcNow > expires || !CryptographicOperations.FixedTimeEquals(hash, secretHash))
                 throw new UserError("配对邀请无效、已使用或已过期。", 403);
-            var peer = new Peer(DeviceIdentity.Fingerprint(cert), request.Name.Trim(), address, request.Port);
+            var peer = new Peer(fingerprint, request.Name.Trim(), address, request.Port);
             if (peer.Id == identity.Id) throw new UserError("不能与本机配对。");
             store.Update(s => s with { Peers = s.Peers.Where(p => p.Id != peer.Id).Append(peer).ToArray() });
             secretHash = null;
@@ -56,7 +55,7 @@ public sealed class Pairing(StateStore store, DeviceIdentity identity, PeerClien
         }
         catch (Exception error) when (error is FormatException or JsonException)
         { throw new UserError("配对邀请格式无效。"); }
-        if (invite.Fingerprint.Length != 64 || invite.Secret.Length != 64) throw new UserError("配对邀请无效。");
+        if (invite.Fingerprint?.Length != 64 || invite.Secret?.Length != 64) throw new UserError("配对邀请无效。");
         using var connection = client.Connect(invite.Address, invite.Port, invite.Fingerprint);
         using var response = await connection.PostAsJsonAsync("peer/pair",
             new PairRequest(store.Current.Name, ownPort, invite.Secret), token);

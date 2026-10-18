@@ -7,8 +7,16 @@ public sealed class SyncEngine(StateStore store, FileScanner scanner, IRemoteFil
 {
     private readonly SemaphoreSlim gate = new(1, 1);
     private SyncProgress progress = new("idle", null, 0, 0);
+    private CancellationTokenSource? activeCancellation;
     public SyncProgress Progress => Volatile.Read(ref progress);
     public bool Busy => gate.CurrentCount == 0;
+
+    public object Cancel()
+    {
+        if (Progress.Phase == "writing") throw new UserError("正在应用修改，请等待校验完成。", 409);
+        Volatile.Read(ref activeCancellation)?.Cancel();
+        return new { message = "已请求取消" };
+    }
 
     public async Task<T> Exclusive<T>(Func<Task<T>> action)
     {
@@ -22,48 +30,53 @@ public sealed class SyncEngine(StateStore store, FileScanner scanner, IRemoteFil
         EnsureRecovered();
         var profile = store.Current.Profiles.FirstOrDefault(p => p.Id == profileId)
             ?? throw new UserError("同步任务不存在。");
-        SetProgress("scanning");
+        SetPhase("scanning");
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+        Volatile.Write(ref activeCancellation, cancellation);
         try
         {
-            var local = await scanner.Scan(profile.TargetPath, token);
-            var source = await remote.Manifest(profile, token);
+            var local = await scanner.Scan(profile.TargetPath, cancellation.Token);
+            var source = await remote.Manifest(profile, cancellation.Token);
             FileScanner.Validate(source, profile.TargetPath);
             var plan = new SyncPlan(StateStore.NewId(), profile, local, source,
                 Planner.Compare(local, source), DateTime.UtcNow);
             JsonFiles.Write(store.PlanPath(plan.Id), plan);
             return plan;
         }
-        finally { SetProgress("idle"); }
+        finally { Volatile.Write(ref activeCancellation, null); SetPhase("idle"); }
     });
 
     public Task<Revision> Execute(string planId, CancellationToken token) => Exclusive(async () =>
     {
         EnsureRecovered();
         var plan = ReadPlan(planId);
+        store.Validate(store.Current);
         if (!store.Current.Profiles.Contains(plan.Profile)) throw new UserError("任务配置已变更，请重新预览。", 409);
         if (File.Exists(store.RevisionPath(plan.Id))) throw new UserError("此预览已经执行，请重新预览。", 409);
         var revision = new Revision(plan.Id, plan.Profile.Id, plan.Profile.Name, "staging", DateTime.UtcNow, plan.Changes);
         Directory.CreateDirectory(store.VaultPath(plan.Id));
         JsonFiles.Write(Path.Combine(store.VaultPath(plan.Id), "plan.json"), plan);
         Save(revision);
-        try { return await Apply(plan, revision, token); }
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+        Volatile.Write(ref activeCancellation, cancellation);
+        try { return await Apply(plan, revision, cancellation.Token); }
         catch (Exception error)
         {
             var state = JsonFiles.Read<Revision>(store.RevisionPath(plan.Id));
             Save(state with { Status = state.Status == "writing" ? "recovery-needed" : "failed", Error = error.Message });
             throw;
         }
-        finally { SetProgress("idle"); }
+        finally { Volatile.Write(ref activeCancellation, null); SetPhase("idle"); }
     });
 
     private async Task<Revision> Apply(SyncPlan plan, Revision revision, CancellationToken token)
     {
-        SetProgress("checking");
+        SetPhase("checking");
         await CheckUnchanged(plan, token);
         await StageAll(plan, token);
         if (plan.Profile.BackupPath is not null)
         {
-            SetProgress("backup");
+            SetPhase("backup");
             var backup = Path.Combine(plan.Profile.BackupPath, plan.Id);
             await TransactionFiles.Backup(plan, backup, token);
             revision = revision with { BackupPath = backup };
@@ -71,7 +84,7 @@ public sealed class SyncEngine(StateStore store, FileScanner scanner, IRemoteFil
         }
         await CheckUnchanged(plan, token);
         token.ThrowIfCancellationRequested();
-        SetProgress("writing");
+        SetPhase("writing");
         Save(revision with { Status = "writing" });
         files.Archive(plan);
         files.Install(plan);
@@ -89,11 +102,11 @@ public sealed class SyncEngine(StateStore store, FileScanner scanner, IRemoteFil
         foreach (var entry in entries)
         {
             var path = files.Stage(plan, entry);
-            SetProgress("downloading", entry.Path, transferred, total);
+            SetProgress(new("downloading", entry.Path, transferred, total));
             await remote.Download(new(plan.Profile, entry, path, bytes =>
             {
                 transferred += bytes;
-                SetProgress("downloading", entry.Path, transferred, total);
+                SetProgress(new("downloading", entry.Path, transferred, total));
             }), token);
             await TransactionFiles.VerifyFile(path, entry, token);
         }
@@ -149,6 +162,6 @@ public sealed class SyncEngine(StateStore store, FileScanner scanner, IRemoteFil
         JsonFiles.Write(store.RevisionPath(revision.Id), revision);
         return revision;
     }
-    private void SetProgress(string phase, string? path = null, long bytes = 0, long total = 0) =>
-        Volatile.Write(ref progress, new(phase, path, bytes, total));
+    private void SetPhase(string phase) => SetProgress(new(phase, null, 0, 0));
+    private void SetProgress(SyncProgress value) => Volatile.Write(ref progress, value);
 }

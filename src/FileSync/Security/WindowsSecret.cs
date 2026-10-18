@@ -46,7 +46,11 @@ public static class WindowsSecret
         {
             unsafe { CryptographicOperations.ZeroMemory(new Span<byte>((void*)input.Data, input.Length)); }
             Marshal.FreeHGlobal(input.Data);
-            if (output.Data != IntPtr.Zero) LocalFree(output.Data);
+            if (output.Data != IntPtr.Zero)
+            {
+                unsafe { CryptographicOperations.ZeroMemory(new Span<byte>((void*)output.Data, output.Length)); }
+                LocalFree(output.Data);
+            }
         }
     }
 }

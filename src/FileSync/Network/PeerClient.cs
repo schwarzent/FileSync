@@ -1,9 +1,5 @@
 using System.Net.Http.Json;
-using System.Net.Security;
-using System.Security.Authentication;
-using System.Security.Cryptography.X509Certificates;
 using FileSync.Core;
-using FileSync.Security;
 
 namespace FileSync.Network;
 
@@ -14,7 +10,7 @@ public interface IRemoteFiles
 }
 public sealed record DownloadRequest(Profile Profile, Entry Entry, string Destination, Action<long> Report);
 
-public sealed class PeerClient(StateStore store, DeviceIdentity identity, Discovery discovery) : IRemoteFiles
+public sealed class PeerClient(StateStore store, SecureTransport transport, Discovery discovery) : IRemoteFiles
 {
     public HttpClient Connect(Peer peer)
     {
@@ -27,17 +23,13 @@ public sealed class PeerClient(StateStore store, DeviceIdentity identity, Discov
         var host = NetworkPolicy.Address(address).ToString();
         var handler = new SocketsHttpHandler
         {
-            UseProxy = false, AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(10),
-            SslOptions = new SslClientAuthenticationOptions
-            {
-                EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
-                ClientCertificates = new X509CertificateCollection { identity.Certificate },
-                RemoteCertificateValidationCallback = (_, cert, _, _) =>
-                    cert is X509Certificate2 certificate && DeviceIdentity.Valid(certificate) &&
-                    string.Equals(DeviceIdentity.Fingerprint(certificate), fingerprint, StringComparison.Ordinal)
-            }
+            UseProxy = false, AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(10)
         };
-        return new(handler) { BaseAddress = new Uri($"https://{host}:{NetworkPolicy.Port(port)}/"), Timeout = Timeout.InfiniteTimeSpan };
+        var client = new HttpClient(handler) { BaseAddress = new Uri($"http://127.0.0.1:{transport.LocalPort}/"), Timeout = Timeout.InfiniteTimeSpan };
+        client.DefaultRequestHeaders.Add("X-FileSync-Bridge", transport.Token);
+        client.DefaultRequestHeaders.Add("X-FileSync-Target", $"{host}:{NetworkPolicy.Port(port)}");
+        client.DefaultRequestHeaders.Add("X-FileSync-Pin", fingerprint);
+        return client;
     }
 
     public Peer Find(string id) => store.Current.Peers.FirstOrDefault(p => p.Id == id)
@@ -70,13 +62,18 @@ public sealed class PeerClient(StateStore store, DeviceIdentity identity, Discov
         await using var destination = new FileStream(request.Destination, FileMode.CreateNew, FileAccess.Write,
             FileShare.None, FileScanner.BufferSize, FileOptions.Asynchronous);
         var buffer = new byte[FileScanner.BufferSize];
+        long received = 0;
         int count;
         while ((count = await source.ReadAsync(buffer, token)) > 0)
         {
+            received += count;
+            if (received > request.Entry.Length) throw new UserError($"远端文件超过清单声明的大小：{request.Entry.Path}", 409);
             await destination.WriteAsync(buffer.AsMemory(0, count), token);
             request.Report(count);
         }
         await destination.FlushAsync(token);
+        destination.Flush(true);
+        if (received != request.Entry.Length) throw new UserError($"远端文件传输不完整：{request.Entry.Path}", 409);
     }
 
     public static async Task Check(HttpResponseMessage response, CancellationToken token)

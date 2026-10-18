@@ -4,9 +4,17 @@
     <AssemblyName>FileSync</AssemblyName>
     <RootNamespace>FileSync</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <GoExecutable Condition="'$(GoExecutable)' == ''">go</GoExecutable>
+    <RepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../..'))</RepositoryRoot>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="wwwroot/**/*" />
     <Content Update="wwwroot/**/*" CopyToPublishDirectory="Never" />
+    <EmbeddedResource Include="../../.artifacts/filesync-transport.exe" LogicalName="FileSync.Transport.exe" />
   </ItemGroup>
+  <Target Name="BuildSecureTransport" BeforeTargets="PrepareForBuild" Inputs="../Transport/main.go;../Transport/outbound.go;../Transport/go.mod" Outputs="../../.artifacts/filesync-transport.exe">
+    <MakeDir Directories="../../.artifacts/tmp" />
+    <Exec WorkingDirectory="../Transport" EnvironmentVariables="APPDATA=$(RepositoryRoot)/.artifacts/go-config;GOENV=off;GOTOOLCHAIN=local;GOCACHE=$(RepositoryRoot)/.artifacts/go-cache;GOPATH=$(RepositoryRoot)/.artifacts/go-path;GOTMPDIR=$(RepositoryRoot)/.artifacts/tmp;GIT_CONFIG_COUNT=1;GIT_CONFIG_KEY_0=safe.directory;GIT_CONFIG_VALUE_0=$(RepositoryRoot)" Command="&quot;$(GoExecutable)&quot; build -trimpath -ldflags=&quot;-s -w&quot; -o ../../.artifacts/filesync-transport.exe ." />
+  </Target>
 </Project>

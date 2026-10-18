@@ -3,7 +3,10 @@ namespace FileSync.Core;
 public sealed record Share(string Id, string Name, string Path);
 public sealed record Peer(string Id, string Name, string Address, int Port);
 public sealed record Profile(string Id, string Name, string PeerId, string ShareId,
-    string TargetPath, string? BackupPath);
+    string TargetPath, string? BackupPath)
+{
+    public string? SourceName { get; init; }
+}
 public sealed record Settings(string Name, IReadOnlyList<Share> Shares,
     IReadOnlyList<Peer> Peers, IReadOnlyList<Profile> Profiles)
 {

@@ -65,12 +65,23 @@ public sealed class TransactionFiles(StateStore store)
             var archive = Slot(plan, change, "before");
             if (!Exists(archive)) continue;
             var destination = PathPolicy.Resolve(plan.Profile.TargetPath, change.Before!.Path);
+            if (OriginalPresent(destination, change.Before)) continue;
             Move(archive, destination, change.Before.Directory);
         }
         RestoreTimes(plan.Profile.TargetPath, plan.Local);
     }
 
     private static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
+
+    private static bool OriginalPresent(string path, Entry original)
+    {
+        if (original.Directory) return Directory.Exists(path);
+        if (!File.Exists(path)) return false;
+        using var stream = FileScanner.OpenRead(path);
+        if (stream.Length != original.Length || Convert.ToHexString(SHA256.HashData(stream)) != original.Hash)
+            throw new UserError($"恢复位置包含不同内容，请检查目标与版本库：{original.Path}", 409);
+        return true;
+    }
 
     private static void Move(string source, string destination, bool directory)
     {

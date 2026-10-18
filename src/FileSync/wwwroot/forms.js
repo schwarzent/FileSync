@@ -60,7 +60,8 @@ export async function profileForm(context, existing) {
     if (!share.value || share.disabled) throw new Error('请先在远端发布源文件夹，再选择它。');
     if (enabled.checked && !backup.node.value.trim()) throw new Error('请选择完整备份位置。');
     await context.api('/profiles', { id: existing?.id, name: name.value, peerId: peer.value, shareId: share.value,
-      targetPath: target.node.value, backupPath: enabled.checked ? backup.node.value : null });
+      targetPath: target.node.value, backupPath: enabled.checked ? backup.node.value : null,
+      sourceName: share.selectedOptions[0].textContent });
     document.querySelector('#modal').close();
     toast('同步任务已保存。');
     await context.refresh();

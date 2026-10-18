@@ -8,9 +8,9 @@ public static class PeerRoutes
 {
     public static void Map(WebApplication app)
     {
-        app.MapPost("/peer/pair", async (PairRequest request, HttpContext context, Pairing pairing, AppOptions options) =>
-            pairing.Accept(request, (await context.Connection.GetClientCertificateAsync())!,
-                context.Connection.RemoteIpAddress!.MapToIPv4().ToString(), options.PeerPort));
+        app.MapPost("/peer/pair", (PairRequest request, HttpContext context, Pairing pairing, AppOptions options) =>
+            pairing.Accept(request, context.Request.Headers["X-FileSync-Fingerprint"].ToString(),
+                context.Request.Headers["X-FileSync-Address"].ToString(), options.PeerPort));
         app.MapGet("/peer/shares", (StateStore store) =>
             store.Current.Shares.Select(s => s with { Path = "" }));
         app.MapGet("/peer/manifest/{id}", async (string id, StateStore store, FileScanner scanner, CancellationToken token) =>

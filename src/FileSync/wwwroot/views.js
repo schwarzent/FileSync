@@ -16,7 +16,7 @@ function profileRow(profile, context) {
   return el('article', { class: 'profile' }, [el('div', { class: 'profile-title' }, [el('h3', {}, profile.name),
     el('div', { class: 'profile-actions' }, [button('', context.act(() => profileForm(context, profile)), { icon: 'edit', class: 'icon-button', title: '编辑任务' }),
       button('', () => confirmAction('移除同步任务', '移除后保留已有文件和版本记录。', () => context.api(`/profiles/${profile.id}`, null, 'DELETE'), context), { icon: 'trash', class: 'icon-button', title: '移除任务' })])]),
-    el('div', { class: 'route' }, [el('div', {}, [el('small', {}, '远端源文件夹'), el('strong', {}, peer?.name || '设备已移除'), el('div', { class: 'path' }, `源 ID：${profile.shareId.slice(0, 8)}`)]),
+    el('div', { class: 'route' }, [el('div', {}, [el('small', {}, peer?.name || '设备已移除'), el('strong', {}, profile.sourceName || '远端源文件夹')]),
       icon('arrow'), el('div', {}, [el('small', {}, '本机目标文件夹'), el('strong', {}, state.settings.name), el('div', { class: 'path' }, profile.targetPath)])]),
     el('div', { class: 'profile-bottom' }, [el('small', {}, profile.backupPath ? '完整备份已启用' : '版本记录已启用'),
       button('预览同步', context.act(() => context.preview(profile.id)), { icon: 'sync', class: 'primary', disabled: state.busy })])]);
