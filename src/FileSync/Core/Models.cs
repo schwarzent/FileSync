@@ -1,11 +1,22 @@
+using System.Text.Json.Serialization;
+
 namespace FileSync.Core;
 
-public sealed record Share(string Id, string Name, string Path);
+public sealed record Share(string Id, string Name, string Path)
+{
+    public bool AllowWrite { get; init; }
+}
 public sealed record Peer(string Id, string Name, string Address, int Port);
 public sealed record Profile(string Id, string Name, string PeerId, string ShareId,
     string TargetPath, string? BackupPath)
 {
     public string? SourceName { get; init; }
+    public string Mode { get; init; } = SyncModes.OneWay;
+}
+public static class SyncModes
+{
+    public const string OneWay = "one-way";
+    public const string TwoWay = "two-way";
 }
 public sealed record Settings(string Name, IReadOnlyList<Share> Shares,
     IReadOnlyList<Peer> Peers, IReadOnlyList<Profile> Profiles)
@@ -16,9 +27,22 @@ public sealed record Entry(string Path, bool Directory, long Length, long Modifi
 public sealed record Manifest(long RootModifiedTicks, IReadOnlyList<Entry> Entries);
 public sealed record Change(string Kind, string Path, Entry? Before, Entry? After);
 public sealed record SyncPlan(string Id, Profile Profile, Manifest Local, Manifest Remote,
-    IReadOnlyList<Change> Changes, DateTime CreatedUtc);
+    IReadOnlyList<Change> Changes, DateTime CreatedUtc)
+{
+    public Manifest? Merged { get; init; }
+    public IReadOnlyList<Change> RemoteChanges { get; init; } = [];
+    public IReadOnlyList<string> Conflicts { get; init; } = [];
+    public string? OwnerPeerId { get; init; }
+    [JsonIgnore]
+    public Manifest Desired => Merged ?? Remote;
+}
 public sealed record Revision(string Id, string ProfileId, string ProfileName, string Status,
-    DateTime CreatedUtc, IReadOnlyList<Change> Changes, string? Error = null, string? BackupPath = null);
+    DateTime CreatedUtc, IReadOnlyList<Change> Changes, string? Error = null, string? BackupPath = null)
+{
+    public bool LocalWriteStarted { get; init; }
+    public string Mode { get; init; } = SyncModes.OneWay;
+    public IReadOnlyList<Change> RemoteChanges { get; init; } = [];
+}
 public sealed record Invite(string Address, int Port, string Fingerprint, string Secret);
 public sealed record PairRequest(string Name, int Port, string Secret);
 public sealed record PairResponse(string Name, string Fingerprint, int Port);

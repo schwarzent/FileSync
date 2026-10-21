@@ -35,6 +35,8 @@ public static class AppHost
         builder.Services.AddSingleton<Pairing>();
         builder.Services.AddSingleton<TransactionFiles>();
         builder.Services.AddSingleton<SyncEngine>();
+        builder.Services.AddSingleton<IncomingServices>();
+        builder.Services.AddSingleton<IncomingTransactions>();
         builder.Services.AddSingleton<RequestSecurity>();
         var app = builder.Build();
         var discovery = app.Services.GetRequiredService<Discovery>();
@@ -43,6 +45,7 @@ public static class AppHost
         var security = app.Services.GetRequiredService<RequestSecurity>();
         app.Use(security.Invoke);
         PeerRoutes.Map(app);
+        TransactionRoutes.Map(app);
         LocalRoutes.Map(app);
         app.Lifetime.ApplicationStopped.Register(identity.Dispose);
         app.Lifetime.ApplicationStopped.Register(instanceLock.Dispose);

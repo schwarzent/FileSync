@@ -59,5 +59,8 @@ public static class FaultTests
         Check.Reject(() => FileScanner.Validate(manifest with { Entries = [entry with { Path = "../outside" }] }, target), "拒绝远端穿越路径");
         Check.Reject(() => FileScanner.Validate(manifest with { Entries = [entry with { Path = "missing/child" }] }, target), "拒绝缺少父目录的清单");
         Check.Reject(() => FileScanner.Validate(manifest with { Entries = [entry with { Hash = "invalid" }] }, target), "拒绝无效文件哈希");
+        Check.Reject(() => FileScanner.Validate(null, target), "拒绝空清单");
+        Check.Reject(() => FileScanner.Validate(manifest with { Entries = [null!] }, target), "拒绝清单空条目");
+        Check.Reject(() => FileScanner.Validate(manifest with { Entries = [entry with { Directory = true }] }, target), "拒绝带文件大小或哈希的目录条目");
     }
 }

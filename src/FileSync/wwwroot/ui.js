@@ -29,7 +29,7 @@ export function el(tag, props = {}, children = []) {
   for (const [key, value] of Object.entries(props)) {
     if (key.startsWith('on')) node.addEventListener(key.slice(2).toLowerCase(), value);
     else if (key === 'class') node.className = value;
-    else if (key.startsWith('aria-') || key === 'role') node.setAttribute(key, value);
+    else if (key.startsWith('aria-') || key.startsWith('data-') || key === 'role') node.setAttribute(key, value);
     else node[key] = value;
   }
   for (const child of [children].flat()) if (child !== null && child !== undefined) node.append(child);

@@ -12,9 +12,9 @@ $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $releasePath = Join-Path $workspacePath ".artifacts/releases/FileSync-win-x64-$stamp"
 & $Dotnet publish 'src/FileSync/FileSync.csproj' -c Release -r win-x64 --self-contained true --nologo --verbosity minimal -o $releasePath "-p:GoExecutable=$Go" -p:DebugType=none
 if ($LASTEXITCODE -ne 0) { throw '发布失败' }
-Copy-Item -LiteralPath (Join-Path $workspacePath 'README.md') -Destination (Join-Path $releasePath '使用说明.md')
+Copy-Item -LiteralPath (Join-Path $workspacePath 'README.md') -Destination (Join-Path $releasePath 'README.md')
 Copy-Item -LiteralPath (Join-Path $workspacePath 'docs') -Destination (Join-Path $releasePath 'docs') -Recurse
-$noticePath = Join-Path $releasePath '第三方许可'
+$noticePath = Join-Path $releasePath 'ThirdPartyLicenses'
 New-Item -ItemType Directory -Path $noticePath | Out-Null
 $goRoot = Split-Path -Parent (Split-Path -Parent (Get-Command $Go).Source)
 $dotnetRoot = Split-Path -Parent (Get-Command $Dotnet).Source

@@ -20,26 +20,28 @@ export function folderInput(value, context) {
   return { node, row: el('div', { class: 'input-row' }, [node, browse]) };
 }
 
-export function shareForm(context) {
-  const name = input('', { required: true, maxLength: 80, placeholder: '例如 工作资料' });
-  const path = folderInput('', context);
+export function shareForm(context, existing) {
+  const name = input(existing?.name || '', { required: true, maxLength: 80, placeholder: '例如 工作资料' });
+  const path = folderInput(existing?.path || '', context);
+  const allowWrite = input('', { type: 'checkbox', checked: Boolean(existing?.allowWrite) });
   const save = context.act(async () => {
     if (!name.reportValidity() || !path.node.reportValidity()) return;
-    await context.api('/shares', { name: name.value, path: path.node.value });
+    await context.api('/shares', { id: existing?.id, name: name.value, path: path.node.value, allowWrite: allowWrite.checked });
     document.querySelector('#modal').close();
-    toast('源文件夹已发布，配对设备可读取。');
+    toast('共享设置已保存。');
     await context.refresh();
   });
-  showDialog('发布本机源文件夹', [note('已配对的设备可读取此文件夹。文件只在手动同步时传输。'), field('名称', name), field('源文件夹', path.row)],
-    [button('发布文件夹', save, { class: 'primary', icon: 'plus' })]);
+  showDialog(existing ? '编辑共享文件夹' : '发布本机源文件夹', [note('已配对的设备可读取此文件夹。允许双向写入后，配对设备可手动同步修改和删除。'),
+    field('名称', name), field('源文件夹', path.row), el('label', { class: 'checkbox-row' }, [allowWrite, '允许配对设备双向写入'])],
+    [button('保存共享', save, { class: 'primary', icon: 'check' })]);
 }
 
-export async function profileForm(context, existing) {
+async function profileFields(context, existing) {
   const state = context.getState();
-  if (!state.settings.peers.length) { pairingForm(context); return; }
   const name = input(existing?.name || '', { required: true, maxLength: 80, placeholder: '例如 从笔记本同步工作资料' });
   const peer = select(state.settings.peers.map(p => ({ value: p.id, label: p.name })), existing?.peerId);
   const share = select([{ value: '', label: '正在获取远端源文件夹…' }]);
+  const mode = select([{ value: 'one-way', label: '单向：远端 → 本机' }, { value: 'two-way', label: '双向：远端 ↔ 本机' }], existing?.mode || 'one-way');
   const target = folderInput(existing?.targetPath || '', context);
   const backup = folderInput(existing?.backupPath || '', context);
   const enabled = input('', { type: 'checkbox', checked: Boolean(existing?.backupPath) });
@@ -49,27 +51,35 @@ export async function profileForm(context, existing) {
   const loadShares = async () => {
     share.disabled = true;
     const shares = await context.api(`/peers/${peer.value}/shares`);
-    share.replaceChildren(...shares.map(s => el('option', { value: s.id }, s.name)));
+    share.replaceChildren(...shares.map(s => el('option', { value: s.id, 'data-writable': String(s.allowWrite) }, `${s.name}${s.allowWrite ? '（允许双向）' : '（只读）'}`)));
     if (!shares.length) share.append(el('option', { value: '' }, '远端尚未发布源文件夹'));
     if (existing && peer.value === existing.peerId) share.value = existing.shareId;
     share.disabled = false;
   };
   peer.addEventListener('change', context.act(loadShares));
+  return { name, peer, share, mode, target, backup, enabled, backupField, loadShares };
+}
+
+export async function profileForm(context, existing) {
+  if (!context.getState().settings.peers.length) { pairingForm(context); return; }
+  const { name, peer, share, mode, target, backup, enabled, backupField, loadShares } = await profileFields(context, existing);
   const save = context.act(async () => {
     if (!name.reportValidity() || !target.node.reportValidity()) return;
     if (!share.value || share.disabled) throw new Error('请先在远端发布源文件夹，再选择它。');
+    if (mode.value === 'two-way' && share.selectedOptions[0].dataset.writable !== 'true')
+      throw new Error('请先在远端共享设置中启用“允许配对设备双向写入”。');
     if (enabled.checked && !backup.node.value.trim()) throw new Error('请选择完整备份位置。');
     await context.api('/profiles', { id: existing?.id, name: name.value, peerId: peer.value, shareId: share.value,
       targetPath: target.node.value, backupPath: enabled.checked ? backup.node.value : null,
-      sourceName: share.selectedOptions[0].textContent });
+      sourceName: share.selectedOptions[0].textContent.replace(/（允许双向）$|（只读）$/, ''), mode: mode.value });
     document.querySelector('#modal').close();
     toast('同步任务已保存。');
     await context.refresh();
   });
-  showDialog(existing ? '编辑同步任务' : '新建同步任务', [note('远端源文件夹 → 本机目标文件夹。执行时，本机独有文件将移入版本库。'),
-    field('任务名称', name), field('来源设备', peer), field('远端源文件夹', share), field('本机目标文件夹', target.row),
+  showDialog(existing ? '编辑同步任务' : '新建同步任务', [note('单向使本机与远端一致；双向首次合并独有文件，后续传播两边的修改和删除。同一文件两边都改动时需先处理冲突。'),
+    field('任务名称', name), field('同步方向', mode), field('远端设备', peer), field('远端源文件夹', share), field('本机目标文件夹', target.row),
     el('label', { class: 'checkbox-row' }, [enabled, '启用同步前完整备份']), backupField,
-    el('small', {}, '被覆盖和删除的文件始终保留在版本库，可撤销最近一次同步。')],
+    el('small', {}, '被覆盖和删除的文件保留在各自设备的版本库。双向任务的撤销会恢复两端。')],
   [button('保存任务', save, { class: 'primary', icon: 'check' })]);
   await loadShares();
 }

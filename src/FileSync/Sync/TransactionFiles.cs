@@ -38,14 +38,14 @@ public sealed class TransactionFiles(StateStore store)
     public void Install(SyncPlan plan)
     {
         var target = plan.Profile.TargetPath;
-        foreach (var entry in plan.Remote.Entries.Where(e => e.Directory).OrderBy(e => e.Path.Length))
+        foreach (var entry in plan.Desired.Entries.Where(e => e.Directory).OrderBy(e => e.Path.Length))
             Directory.CreateDirectory(PathPolicy.Resolve(target, entry.Path));
         foreach (var change in plan.Changes.Where(c => c.After is { Directory: false } && c.Kind != "metadata"))
         {
             var destination = PathPolicy.Resolve(target, change.After!.Path);
             File.Move(Stage(plan, change.After), destination);
         }
-        RestoreTimes(target, plan.Remote);
+        RestoreTimes(target, plan.Desired);
     }
 
     public void Rollback(SyncPlan plan)

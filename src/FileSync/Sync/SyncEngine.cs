@@ -3,7 +3,7 @@ using FileSync.Network;
 
 namespace FileSync.Sync;
 
-public sealed class SyncEngine(StateStore store, FileScanner scanner, IRemoteFiles remote, TransactionFiles files)
+public sealed partial class SyncEngine(StateStore store, FileScanner scanner, IRemoteFiles remote, TransactionFiles files)
 {
     private readonly SemaphoreSlim gate = new(1, 1);
     private SyncProgress progress = new("idle", null, 0, 0);
@@ -40,6 +40,7 @@ public sealed class SyncEngine(StateStore store, FileScanner scanner, IRemoteFil
             FileScanner.Validate(source, profile.TargetPath);
             var plan = new SyncPlan(StateStore.NewId(), profile, local, source,
                 Planner.Compare(local, source), DateTime.UtcNow);
+            if (profile.Mode == SyncModes.TwoWay) plan = MergePlan(plan);
             JsonFiles.Write(store.PlanPath(plan.Id), plan);
             return plan;
         }
@@ -50,20 +51,28 @@ public sealed class SyncEngine(StateStore store, FileScanner scanner, IRemoteFil
     {
         EnsureRecovered();
         var plan = ReadPlan(planId);
+        if (plan.Conflicts.Count > 0) throw new UserError("请先处理双向同步冲突，再重新预览。", 409);
         store.Validate(store.Current);
         if (!store.Current.Profiles.Contains(plan.Profile)) throw new UserError("任务配置已变更，请重新预览。", 409);
         if (File.Exists(store.RevisionPath(plan.Id))) throw new UserError("此预览已经执行，请重新预览。", 409);
-        var revision = new Revision(plan.Id, plan.Profile.Id, plan.Profile.Name, "staging", DateTime.UtcNow, plan.Changes);
+        var revision = new Revision(plan.Id, plan.Profile.Id, plan.Profile.Name, "staging", DateTime.UtcNow, plan.Changes)
+            { Mode = plan.Profile.Mode, RemoteChanges = plan.RemoteChanges };
         Directory.CreateDirectory(store.VaultPath(plan.Id));
         JsonFiles.Write(Path.Combine(store.VaultPath(plan.Id), "plan.json"), plan);
         Save(revision);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
         Volatile.Write(ref activeCancellation, cancellation);
-        try { return await Apply(plan, revision, cancellation.Token); }
+        try
+        {
+            return plan.Profile.Mode == SyncModes.TwoWay
+                ? await ApplyTwoWay(plan, revision, cancellation.Token)
+                : await Apply(plan, revision, cancellation.Token);
+        }
         catch (Exception error)
         {
             var state = JsonFiles.Read<Revision>(store.RevisionPath(plan.Id));
-            Save(state with { Status = state.Status == "writing" ? "recovery-needed" : "failed", Error = error.Message });
+            Save(state with { Status = plan.Profile.Mode == SyncModes.TwoWay || state.Status == "writing"
+                ? "recovery-needed" : "failed", Error = error.Message });
             throw;
         }
         finally { Volatile.Write(ref activeCancellation, null); SetPhase("idle"); }
@@ -128,6 +137,7 @@ public sealed class SyncEngine(StateStore store, FileScanner scanner, IRemoteFil
         var latest = store.History().FirstOrDefault(r => r.ProfileId == revision.ProfileId && r.Status == "completed");
         if (latest?.Id != id) throw new UserError("请先撤销此任务最近一次同步。", 409);
         var plan = ReadArchivedPlan(id);
+        if (plan.Profile.Mode == SyncModes.TwoWay) return await UndoTwoWay(plan, revision, token);
         if (!FileScanner.Equal(await scanner.Scan(plan.Profile.TargetPath, token), plan.Remote))
             throw new UserError("同步后本机文件已改变，停止撤销以保护现有修改。", 409);
         Save(revision with { Status = "reverting" });
@@ -143,13 +153,14 @@ public sealed class SyncEngine(StateStore store, FileScanner scanner, IRemoteFil
         if (revision.Status is not ("writing" or "recovery-needed" or "reverting" or "staging"))
             throw new UserError("此记录无需恢复。");
         var plan = ReadArchivedPlan(id);
+        if (plan.Profile.Mode == SyncModes.TwoWay) return await RecoverTwoWay(plan, revision, token);
         if (revision.Status != "staging") files.Rollback(plan);
         if (!FileScanner.Equal(await scanner.Scan(plan.Profile.TargetPath, token), plan.Local))
             throw new UserError("恢复后的文件与原始清单不一致，请检查版本目录。", 409);
         return Save(revision with { Status = "reverted", Error = null });
     });
 
-    private void EnsureRecovered()
+    internal void EnsureRecovered()
     {
         if (store.History().Any(r => r.Status is "writing" or "recovery-needed" or "reverting" or "staging"))
             throw new UserError("有中断的同步，请先在版本记录中恢复。", 409);

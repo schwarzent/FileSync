@@ -40,6 +40,8 @@ public sealed class StateStore
             for (var j = i + 1; j < roots.Length; j++) PathPolicy.Disjoint(roots[i], roots[j]);
         foreach (var profile in value.Profiles)
         {
+            if (profile.Mode is not (SyncModes.OneWay or SyncModes.TwoWay))
+                throw new UserError("同步方向无效。");
             if (!value.Peers.Any(p => p.Id == profile.PeerId)) throw new UserError("配对设备不存在。");
             if (string.IsNullOrWhiteSpace(profile.ShareId)) throw new UserError("请选择远端源文件夹。");
             if (profile.BackupPath is null) continue;

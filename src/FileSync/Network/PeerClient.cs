@@ -10,7 +10,7 @@ public interface IRemoteFiles
 }
 public sealed record DownloadRequest(Profile Profile, Entry Entry, string Destination, Action<long> Report);
 
-public sealed class PeerClient(StateStore store, SecureTransport transport, Discovery discovery) : IRemoteFiles
+public sealed partial class PeerClient(StateStore store, SecureTransport transport, Discovery discovery) : IRemoteFiles
 {
     public HttpClient Connect(Peer peer)
     {

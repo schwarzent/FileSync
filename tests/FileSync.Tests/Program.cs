@@ -16,6 +16,7 @@ await SecurityTests.Certificates(first, second, deadline.Token);
 await first.PairTo(second, deadline.Token);
 Check.True(first.Store.Current.Peers.Count == 1 && second.Store.Current.Peers.Count == 1, "双方持久化配对身份");
 await SyncTests.Run(first, second, root, deadline.Token);
+await TwoWayTests.Run(new(first, second, root), deadline.Token);
 await FaultTests.Run(root, deadline.Token);
 await ResourceTests.Run(first, second.Identity.Id, deadline.Token);
 await SyncResourceTests.Run(new(first, second, root), deadline.Token);

@@ -3,7 +3,7 @@ import { syncView, devicesView, historyView, settingsView, changesList, statusLa
 
 const session = document.querySelector('meta[name="filesync-session"]').content;
 const pages = { sync: ['同步任务', syncView], devices: ['局域网设备', devicesView], history: ['版本记录', historyView], settings: ['设置', settingsView] };
-const phases = { idle: '等待操作', scanning: '正在比较文件', checking: '正在检查文件变化', downloading: '正在传输文件', backup: '正在完整备份', writing: '正在应用并校验修改' };
+const phases = { idle: '等待操作', scanning: '正在比较文件', checking: '正在检查文件变化', downloading: '正在下载文件', uploading: '正在上传文件', backup: '正在完整备份', writing: '正在应用并校验修改' };
 let state;
 let currentPage = 'sync';
 let timer;
@@ -86,13 +86,15 @@ async function preview(id) {
   schedule();
   try {
     const plan = await api(`/profiles/${id}/preview`, {});
-    const counts = Object.fromEntries(['add', 'update', 'delete', 'replace', 'metadata'].map(kind => [kind, plan.changes.filter(c => c.kind === kind).length]));
+    const combined = [...plan.changes, ...plan.remoteChanges];
+    const counts = Object.fromEntries(['add', 'update', 'delete', 'replace', 'metadata'].map(kind => [kind, combined.filter(c => c.kind === kind).length]));
     const summary = el('div', { class: 'preview-summary' }, [
       `新增 ${counts.add}`, `更新 ${counts.update + counts.replace}`, `删除 ${counts.delete}`, `时间 ${counts.metadata}`
     ].map(text => el('span', {}, text)));
-    const dialog = showDialog('同步预览', [note(`${plan.profile.name}：远端将作为本机目标的完整内容来源。${counts.delete ? ` ${counts.delete} 项本机内容将移入版本库。` : ''}`),
+    const twoWay = plan.profile.mode === 'two-way';
+    const dialog = showDialog('同步预览', [note(`${plan.profile.name}：${twoWay ? '将合并两端内容，以下分别列出本机与远端修改。' : '本机目标将与远端一致。'}`),
       summary, el('p', { class: 'path' }, plan.profile.targetPath),
-      plan.changes.length ? changesList(plan.changes) : el('p', {}, '文件内容一致；执行后仍会恢复远端目录时间。')],
+      ...previewChanges(plan)],
     [button('返回', () => dialog.close()), button('执行同步', act(async () => {
       dialog.close();
       localOperation = true;
@@ -101,14 +103,27 @@ async function preview(id) {
         await api(`/plans/${plan.id}/execute`, {});
         toast('同步完成，文件与目录时间已校验。');
       } finally { localOperation = false; await refresh(); }
-    }), { class: 'primary', icon: 'download' })]);
+    }), { class: 'primary', icon: 'sync', disabled: plan.conflicts.length > 0 })]);
   } finally { localOperation = false; await refresh(); }
+}
+
+function previewChanges(plan) {
+  const nodes = [];
+  if (plan.conflicts.length) nodes.push(note('检测到冲突，请在两端处理以下文件后重新预览。'),
+    ...plan.conflicts.map(path => el('p', { class: 'path' }, path)));
+  if (plan.profile.mode === 'two-way') nodes.push(el('h3', {}, '本机修改'));
+  nodes.push(plan.changes.length ? changesList(plan.changes) : el('p', {}, '本机文件内容一致。'));
+  if (plan.profile.mode === 'two-way') nodes.push(el('h3', {}, '远端修改'),
+    plan.remoteChanges.length ? changesList(plan.remoteChanges) : el('p', {}, '远端文件内容一致。'));
+  return nodes;
 }
 
 function revisionDetails(revision) {
   const dialog = showDialog('同步版本详情', [el('h3', {}, revision.profileName), el('p', {}, `${date(revision.createdUtc)} · ${statusLabels[revision.status] || revision.status}`),
     el('p', { class: 'path' }, revision.id), revision.error ? note(revision.error) : null,
-    revision.backupPath ? note(`完整备份：${revision.backupPath}`, 'backup') : null, changesList(revision.changes)].filter(Boolean),
+    revision.backupPath ? note(`完整备份：${revision.backupPath}`, 'backup') : null,
+    revision.mode === 'two-way' ? el('h3', {}, '本机修改') : null, changesList(revision.changes),
+    ...(revision.mode === 'two-way' ? [el('h3', {}, '远端修改'), changesList(revision.remoteChanges)] : [])].filter(Boolean),
   [button('关闭', () => dialog.close())]);
 }
 

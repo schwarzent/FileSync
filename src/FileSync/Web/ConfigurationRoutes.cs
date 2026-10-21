@@ -6,8 +6,15 @@ namespace FileSync.Web;
 public static class ConfigurationRoutes
 {
     private sealed record NameRequest(string Name);
-    private sealed record ShareRequest(string Name, string Path);
-    private sealed record ProfileRequest(string? Id, string Name, string PeerId, string ShareId, string TargetPath, string? BackupPath, string? SourceName);
+    private sealed record ShareRequest(string Name, string Path)
+    {
+        public string? Id { get; init; }
+        public bool AllowWrite { get; init; }
+    }
+    private sealed record ProfileRequest(string? Id, string Name, string PeerId, string ShareId, string TargetPath, string? BackupPath, string? SourceName)
+    {
+        public string Mode { get; init; } = SyncModes.OneWay;
+    }
 
     public static void Map(WebApplication app)
     {
@@ -34,8 +41,13 @@ public static class ConfigurationRoutes
     {
         var path = PathPolicy.Root(request.Path);
         if (!Directory.Exists(path)) throw new UserError("源文件夹不存在。");
-        var share = new Share(StateStore.NewId(), Name(request.Name), path);
-        return store.Update(s => s with { Shares = s.Shares.Append(share).ToArray() });
+        var id = request.Id is null ? StateStore.NewId() : StateStore.SafeId(request.Id);
+        var existing = store.Current.Shares.FirstOrDefault(s => s.Id == id);
+        if (request.Id is not null && existing is null) throw new UserError("共享不存在。", 404);
+        if (existing is not null && existing.Path != path)
+            throw new UserError("已发布共享的路径不可修改，请重新发布文件夹。");
+        var share = new Share(id, Name(request.Name), path) { AllowWrite = request.AllowWrite };
+        return store.Update(s => s with { Shares = s.Shares.Where(x => x.Id != id).Append(share).ToArray() });
     }
 
     private static Settings SaveProfile(StateStore store, ProfileRequest request)
@@ -45,7 +57,7 @@ public static class ConfigurationRoutes
         var profile = new Profile(request.Id is null ? StateStore.NewId() : StateStore.SafeId(request.Id),
             Name(request.Name), request.PeerId, StateStore.SafeId(request.ShareId), target,
             string.IsNullOrWhiteSpace(request.BackupPath) ? null : PathPolicy.Root(request.BackupPath))
-        { SourceName = request.SourceName };
+        { SourceName = request.SourceName, Mode = request.Mode };
         return store.Update(s => s with { Profiles = s.Profiles.Where(x => x.Id != profile.Id).Append(profile).ToArray() });
     }
 
