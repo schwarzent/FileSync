@@ -11,7 +11,7 @@ let timer;
 let disposed = false;
 let refreshing;
 let localOperation = false;
-const context = { api, refresh, act, getState: () => state, history: [], preview, revisionDetails };
+const context = { api, refresh, act, getState: () => state, history: [], preview, publish, revisionDetails };
 
 async function api(path, body, method) {
   const response = await fetch(`/api${path}`, {
@@ -50,7 +50,7 @@ function renderProgress() {
   const node = document.querySelector('#progress');
   const progress = state.progress;
   node.hidden = !state.busy || progress.phase === 'idle';
-  node.replaceChildren(el('strong', {}, phases[progress.phase] || progress.phase), el('p', {}, progress.path || '请保持两台设备在线'),
+  node.replaceChildren(el('strong', {}, phases[progress.phase] || progress.phase), el('p', {}, progress.path || '正在处理同步任务'),
     el('progress', progress.totalBytes ? { value: progress.bytes, max: progress.totalBytes } : {}),
     el('p', {}, progress.totalBytes ? `${bytes(progress.bytes)} / ${bytes(progress.totalBytes)}` : '正在处理…'),
     progress.phase !== 'writing' ? button('取消操作', act(() => api('/cancel', {})), { class: 'text', icon: 'close' }) : null);
@@ -95,6 +95,17 @@ async function preview(id) {
         toast('同步完成，文件与目录时间已校验。');
       } finally { localOperation = false; await refresh(); }
     });
+  } finally { localOperation = false; await refresh(); }
+}
+
+async function publish(id) {
+  localOperation = true;
+  schedule();
+  try {
+    const result = await api(`/profiles/${id}/publish`, {});
+    showDialog('已提交 OneDrive 中继', [note(result.message),
+      el('p', {}, `${result.files} 个文件，${result.directories} 个文件夹；原始时间和哈希已记录。`)],
+    [button('关闭', () => document.querySelector('#modal').close())]);
   } finally { localOperation = false; await refresh(); }
 }
 

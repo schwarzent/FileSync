@@ -43,7 +43,7 @@ export function button(label, action, options = {}) {
 }
 
 export function heading(title, subtitle, action) {
-  return el('div', { class: 'page-heading' }, [el('div', {}, [el('div', { class: 'eyebrow' }, 'LOCAL NETWORK · 本地连接'), el('h1', {}, title), el('p', {}, subtitle)]), action]);
+  return el('div', { class: 'page-heading' }, [el('div', {}, [el('div', { class: 'eyebrow' }, 'FILESYNC · 文件同步'), el('h1', {}, title), el('p', {}, subtitle)]), action]);
 }
 
 export function empty(title, description, action, name = 'folder') {

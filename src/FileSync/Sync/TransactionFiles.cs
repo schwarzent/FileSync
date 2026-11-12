@@ -100,9 +100,19 @@ public sealed class TransactionFiles(StateStore store)
     public static void RestoreTimes(string root, Manifest manifest)
     {
         foreach (var entry in manifest.Entries.Where(e => !e.Directory))
+        {
+            if (entry.CreatedTicks is long created)
+                File.SetCreationTimeUtc(PathPolicy.Resolve(root, entry.Path), new(created, DateTimeKind.Utc));
             File.SetLastWriteTimeUtc(PathPolicy.Resolve(root, entry.Path), new(entry.ModifiedTicks, DateTimeKind.Utc));
+        }
         foreach (var entry in manifest.Entries.Where(e => e.Directory).OrderByDescending(e => e.Path.Length))
+        {
+            if (entry.CreatedTicks is long created)
+                Directory.SetCreationTimeUtc(PathPolicy.Resolve(root, entry.Path), new(created, DateTimeKind.Utc));
             Directory.SetLastWriteTimeUtc(PathPolicy.Resolve(root, entry.Path), new(entry.ModifiedTicks, DateTimeKind.Utc));
+        }
+        if (manifest.RootCreatedTicks is long rootCreated)
+            Directory.SetCreationTimeUtc(root, new(rootCreated, DateTimeKind.Utc));
         Directory.SetLastWriteTimeUtc(root, new(manifest.RootModifiedTicks, DateTimeKind.Utc));
     }
 

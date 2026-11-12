@@ -38,10 +38,11 @@ public sealed partial class SyncEngine(StateStore store, FileScanner scanner, IR
             var source = await remote.Manifest(profile, cancellation.Token);
             FileScanner.Validate(source, profile.TargetPath);
             SyncScope.Validate(source);
-            var local = await scanner.Scan(profile.TargetPath, cancellation.Token, source.IgnorePatterns);
+            var local = await ScanProfile(profile, cancellation.Token, source.IgnorePatterns);
             var plan = new SyncPlan(StateStore.NewId(), profile, local, source,
                 Planner.Compare(local, source), DateTime.UtcNow);
             if (profile.Mode == SyncModes.TwoWay) plan = MergePlan(plan);
+            else if (profile.Mode == SyncModes.Latest) plan = LatestPlanner.Merge(plan);
             else
             {
                 plan = plan with { Merged = SyncScope.Preserve(source, local) };
@@ -174,7 +175,7 @@ public sealed partial class SyncEngine(StateStore store, FileScanner scanner, IR
 
     private SyncPlan ReadPlan(string id) => JsonFiles.Read<SyncPlan>(store.PlanPath(id));
     private Task<Manifest> ScanLocal(SyncPlan plan, CancellationToken token) =>
-        scanner.Scan(plan.Profile.TargetPath, token, plan.Local.IgnorePatterns);
+        ScanProfile(plan.Profile, token, plan.Local.IgnorePatterns);
     private SyncPlan ReadArchivedPlan(string id) => JsonFiles.Read<SyncPlan>(Path.Combine(store.VaultPath(id), "plan.json"));
     private Revision Save(Revision revision)
     {

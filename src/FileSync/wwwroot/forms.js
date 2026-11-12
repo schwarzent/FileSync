@@ -1,4 +1,5 @@
 import { el, button, field, input, select, showDialog, toast, note } from './ui.js';
+import { oneDriveForm } from './onedrive.js';
 
 export function folderInput(value, context) {
   const node = input(value, { placeholder: '例如 D:\\Documents\\项目资料', required: true });
@@ -9,7 +10,7 @@ export function folderInput(value, context) {
   return { node, row: el('div', { class: 'input-row' }, [node, browse]) };
 }
 
-function ignoreInput(value = '') {
+export function ignoreInput(value = '') {
   const node = el('textarea', { value, spellcheck: false, class: 'ignore-patterns',
     placeholder: '# 每行一条，使用 / 分隔\n.git/\nnode_modules/\n/build/\n**/cache/\n*.tmp' });
   return { node, field: field('忽略规则', node, '相对同步根目录，每行一条；支持 *、**、?、# 注释。目录以 / 结尾；不支持 ! 或 []。忽略的目录不扫描、不传输，原有内容保留。') };
@@ -59,7 +60,16 @@ async function profileFields(context, existing) {
   return { name, peer, share, mode, target, backup, enabled, backupField, ignored, loadShares };
 }
 
-export async function profileForm(context, existing) {
+export function profileForm(context, existing) {
+  if (existing?.transport === 'onedrive') return oneDriveForm(context, existing);
+  if (existing) return lanProfileForm(context, existing);
+  showDialog('新建同步任务', [note('选择本次任务使用的传输方式。')], [
+    button('OneDrive 远程同步', context.act(() => oneDriveForm(context)), { class: 'primary', icon: 'sync' }),
+    button('局域网同步', context.act(() => lanProfileForm(context)), { icon: 'devices' })
+  ]);
+}
+
+async function lanProfileForm(context, existing) {
   if (!context.getState().settings.peers.length) { pairingForm(context); return; }
   const { name, peer, share, mode, target, backup, enabled, backupField, ignored, loadShares } = await profileFields(context, existing);
   const save = context.act(async () => {

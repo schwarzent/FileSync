@@ -1,6 +1,7 @@
 using System.Reflection;
 using FileSync.Core;
 using FileSync.Network;
+using FileSync.OneDrive;
 using FileSync.Platform;
 using FileSync.Security;
 using FileSync.Sync;
@@ -26,6 +27,9 @@ public static class LocalRoutes
             engine.Exclusive(() => pairing.Join(request.Code, options.PeerPort, token)));
         app.MapGet("/api/peers/{id}/shares", (string id, PeerClient client, CancellationToken token) => client.Shares(id, token));
         app.MapPost("/api/profiles/{id}/preview", (string id, SyncEngine engine, CancellationToken token) => engine.Preview(id, token));
+        app.MapGet("/api/onedrive/accounts", () => OneDriveAccounts.Read());
+        app.MapPost("/api/profiles/{id}/publish", (string id, SyncEngine engine, OneDrivePublisher publisher, CancellationToken token) =>
+            engine.Publish(id, publisher, token));
         app.MapPost("/api/plans/{id}/execute", (string id, SyncEngine engine, CancellationToken token) => engine.Execute(id, token));
         app.MapPost("/api/plans/{id}/resolve", (string id, ResolutionRequest request, SyncEngine engine, CancellationToken token) =>
             engine.Resolve(id, request.Choices, token));
@@ -40,6 +44,7 @@ public static class LocalRoutes
         app.MapGet("/app.js", () => Results.Text(Resource("app.js"), "text/javascript; charset=utf-8"));
         app.MapGet("/ui.js", () => Results.Text(Resource("ui.js"), "text/javascript; charset=utf-8"));
         app.MapGet("/forms.js", () => Results.Text(Resource("forms.js"), "text/javascript; charset=utf-8"));
+        app.MapGet("/onedrive.js", () => Results.Text(Resource("onedrive.js"), "text/javascript; charset=utf-8"));
         app.MapGet("/preview.js", () => Results.Text(Resource("preview.js"), "text/javascript; charset=utf-8"));
         app.MapGet("/conflicts.js", () => Results.Text(Resource("conflicts.js"), "text/javascript; charset=utf-8"));
         app.MapGet("/views.js", () => Results.Text(Resource("views.js"), "text/javascript; charset=utf-8"));

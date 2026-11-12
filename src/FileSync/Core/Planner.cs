@@ -19,7 +19,7 @@ public static class Planner
         if (before.Path != after.Path) return new("replace", after.Path, before, after);
         if (before.Directory != after.Directory) return new("replace", after.Path, before, after);
         if (!after.Directory && before.Hash != after.Hash) return new("update", after.Path, before, after);
-        if (before.ModifiedTicks != after.ModifiedTicks)
+        if (before.ModifiedTicks != after.ModifiedTicks || before.CreatedTicks != after.CreatedTicks)
             return new("metadata", after.Path, before, after);
         return null;
     }

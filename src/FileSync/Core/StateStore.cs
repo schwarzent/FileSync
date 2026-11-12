@@ -42,15 +42,31 @@ public sealed class StateStore
         foreach (var profile in value.Profiles)
         {
             _ = new IgnoreRules(profile.IgnorePatterns);
-            if (profile.Mode is not (SyncModes.OneWay or SyncModes.TwoWay))
-                throw new UserError("同步方向无效。");
-            if (!value.Peers.Any(p => p.Id == profile.PeerId)) throw new UserError("配对设备不存在。");
-            if (string.IsNullOrWhiteSpace(profile.ShareId)) throw new UserError("请选择远端源文件夹。");
+            ValidateTransport(profile, value, roots);
             if (profile.BackupPath is null) continue;
             var backup = PathPolicy.Root(profile.BackupPath);
             PathPolicy.Disjoint(backup, Root);
             foreach (var root in roots) PathPolicy.Disjoint(root, backup);
+            foreach (var relay in value.Profiles.Where(p => p.RelayPath is not null))
+                PathPolicy.Disjoint(backup, PathPolicy.Root(relay.RelayPath!));
         }
+    }
+
+    private void ValidateTransport(Profile profile, Settings value, IReadOnlyList<string> roots)
+    {
+        if (profile.Transport == SyncTransports.OneDrive)
+        {
+            if (profile.Mode != SyncModes.Latest) throw new UserError("OneDrive 任务必须按原始修改时间同步。");
+            var relay = PathPolicy.Root(profile.RelayPath ?? "");
+            PathPolicy.Disjoint(relay, Root);
+            foreach (var root in roots) PathPolicy.Disjoint(relay, root);
+            return;
+        }
+        if (profile.Transport != SyncTransports.Lan) throw new UserError("同步方式无效。");
+        if (profile.Mode is not (SyncModes.OneWay or SyncModes.TwoWay)) throw new UserError("同步方向无效。");
+        if (!value.Peers.Any(p => p.Id == profile.PeerId)) throw new UserError("配对设备不存在。");
+        if (string.IsNullOrWhiteSpace(profile.ShareId)) throw new UserError("请选择远端源文件夹。");
+        if (profile.RelayPath is not null) throw new UserError("局域网任务不能设置 OneDrive 中继路径。");
     }
 
     public string PlanPath(string id) => Path.Combine(Root, "plans", SafeId(id) + ".json");

@@ -1,5 +1,6 @@
 import { el, icon, button, heading, empty, input, field, bytes, date, note } from './ui.js';
 import { profileForm, shareForm, pairingForm, confirmAction } from './forms.js';
+import { oneDriveRow } from './onedrive.js';
 
 function card(title, body, action, subtitle) {
   return el('section', { class: 'card' }, [el('div', { class: 'card-heading' }, [el('div', {}, [el('h2', {}, title), subtitle ? el('small', {}, subtitle) : null]), action]), body]);
@@ -11,6 +12,7 @@ function stat(name, value, symbol, unit = '') {
 }
 
 function profileRow(profile, context) {
+  if (profile.transport === 'onedrive') return oneDriveRow(profile, context);
   const state = context.getState();
   const peer = state.settings.peers.find(p => p.id === profile.peerId);
   return el('article', { class: 'profile' }, [el('div', { class: 'profile-title' }, [el('h3', {}, profile.name),
@@ -49,11 +51,11 @@ export function syncView(context) {
     el('div', { class: 'stats' }, [stat('已配对设备', String(state.settings.peers.length).padStart(2, '0'), 'devices', '台设备'),
       stat('同步任务', String(profiles.length).padStart(2, '0'), 'folder', '个任务'), stat('最近一次同步', latest ? date(latest.createdUtc) : '尚未同步', 'clock')]),
     el('div', { class: 'dashboard-grid' }, [el('div', { class: 'stack' }, [card('我的同步任务', el('div', {}, [profiles.length ? el('div', {}, profiles.map(p => profileRow(p, context))) :
-      empty('从一个文件夹开始', '配对局域网设备，选择来源与目标文件夹。每次同步前，都可以先查看文件变化。', button('创建第一个任务', context.act(() => profileForm(context)), { icon: 'plus', class: 'primary' })),
+      empty('从一个文件夹开始', '通过局域网或已登录的 OneDrive 同步。每次接收前可以预览文件变化。', button('创建第一个任务', context.act(() => profileForm(context)), { icon: 'plus', class: 'primary' })),
       el('div', { class: 'hint-strip' }, [icon('clock'), '手动同步 · 仅在你点击执行时更改文件'])]), el('span', { class: 'count' }, `${profiles.length} 个任务`)),
     el('div', { class: 'bottom-note' }, [icon('history'), '每次修改都有记录，被覆盖和删除的文件可从版本记录中恢复。'])]),
     el('div', { class: 'stack' }, [localCard(context), sourceList(context), el('section', { class: 'card security-card' }, [el('h3', {}, [icon('shield'), '安全地连接，安心地同步']),
-      el('p', {}, 'TLS 加密传输，配对证书验证设备身份。文件留在你的设备之间，无需云端账号。')])])])];
+      el('p', {}, '局域网通过配对证书验证设备身份；OneDrive 使用本机已登录的客户端中继，并核对内容与原始时间。')])])])];
 }
 
 export function devicesView(context) {

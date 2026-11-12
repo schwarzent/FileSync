@@ -8,12 +8,20 @@ public sealed class FileScanner
     private const int HashHexLength = 64;
 
     public async Task<Manifest> Scan(string root, CancellationToken token, string ignorePatterns = "")
+        => await ScanCore(root, token, new(ignorePatterns, false));
+
+    public Task<Manifest> ScanMetadata(string root, CancellationToken token, string ignorePatterns = "")
+        => ScanCore(root, token, new(ignorePatterns, true));
+
+    private sealed record ScanOptions(string IgnorePatterns, bool CreationTime);
+
+    private async Task<Manifest> ScanCore(string root, CancellationToken token, ScanOptions options)
     {
         PathPolicy.AssertNoLinks(root);
         if (!Directory.Exists(root)) throw new UserError($"文件夹不存在：{root}");
         var entries = new List<Entry>();
         var excluded = new List<string>();
-        var rules = new IgnoreRules(ignorePatterns);
+        var rules = new IgnoreRules(options.IgnorePatterns);
         var pending = new Stack<string>();
         pending.Push(root);
         while (pending.TryPop(out var folder))
@@ -24,15 +32,21 @@ public sealed class FileScanner
                 token.ThrowIfCancellationRequested();
                 var relative = Path.GetRelativePath(root, path).Replace('\\', '/');
                 if (rules.Excludes(relative, Directory.Exists(path))) { excluded.Add(relative); continue; }
-                await ReadEntry(new ScanContext(root, path, entries, pending), token);
+                await ReadEntry(new ScanContext(root, entries, pending)
+                    { Path = path, CreationTime = options.CreationTime }, token);
             }
         }
         return new(Directory.GetLastWriteTimeUtc(root).Ticks,
             entries.OrderBy(e => e.Path, StringComparer.OrdinalIgnoreCase).ToArray())
-            { IgnorePatterns = ignorePatterns, ExcludedPaths = excluded };
+            { IgnorePatterns = options.IgnorePatterns, ExcludedPaths = excluded,
+                RootCreatedTicks = options.CreationTime ? Directory.GetCreationTimeUtc(root).Ticks : null };
     }
 
-    private sealed record ScanContext(string Root, string Path, List<Entry> Entries, Stack<string> Pending);
+    private sealed record ScanContext(string Root, List<Entry> Entries, Stack<string> Pending)
+    {
+        public required string Path { get; init; }
+        public bool CreationTime { get; init; }
+    }
 
     private static async Task ReadEntry(ScanContext context, CancellationToken token)
     {
@@ -41,14 +55,16 @@ public sealed class FileScanner
         var attributes = File.GetAttributes(path);
         if ((attributes & FileAttributes.Directory) != 0)
         {
-            context.Entries.Add(new(relative, true, 0, Directory.GetLastWriteTimeUtc(path).Ticks, null));
+            context.Entries.Add(new(relative, true, 0, Directory.GetLastWriteTimeUtc(path).Ticks, null)
+                { CreatedTicks = context.CreationTime ? Directory.GetCreationTimeUtc(path).Ticks : null });
             context.Pending.Push(path);
             return;
         }
         await using var stream = OpenRead(path);
         var modified = File.GetLastWriteTimeUtc(path).Ticks;
         var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, token));
-        context.Entries.Add(new(relative, false, stream.Length, modified, hash));
+        context.Entries.Add(new(relative, false, stream.Length, modified, hash)
+            { CreatedTicks = context.CreationTime ? File.GetCreationTimeUtc(path).Ticks : null });
     }
 
     public static FileStream OpenRead(string path) => new(path, new FileStreamOptions
@@ -59,6 +75,7 @@ public sealed class FileScanner
 
     public static bool Equal(Manifest first, Manifest second) =>
         first.IgnorePatterns == second.IgnorePatterns && first.RootModifiedTicks == second.RootModifiedTicks &&
+        first.RootCreatedTicks == second.RootCreatedTicks &&
         first.Entries.SequenceEqual(second.Entries);
 
     public static void Validate(Manifest? manifest, string target)
@@ -69,6 +86,8 @@ public sealed class FileScanner
             throw new UserError("远端忽略路径清单无效。");
         if (!ValidTicks(manifest.RootModifiedTicks))
             throw new UserError("远端根目录时间无效。");
+        if (manifest.RootCreatedTicks is long created && !ValidTicks(created))
+            throw new UserError("远端根目录创建时间无效。");
         var paths = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in manifest.Entries)
         {
@@ -83,6 +102,7 @@ public sealed class FileScanner
         if (entry is null) throw new UserError("远端文件清单包含空条目。");
         PathPolicy.Resolve(target, entry.Path);
         if (entry.Length < 0 || !ValidTicks(entry.ModifiedTicks)) throw new UserError("远端文件清单的大小或时间无效。");
+        if (entry.CreatedTicks is long created && !ValidTicks(created)) throw new UserError("远端创建时间无效。");
         var contentValid = entry.Directory ? entry.Length == 0 && entry.Hash is null : ValidHash(entry.Hash);
         if (!contentValid) throw new UserError("远端文件清单的目录或文件哈希无效。");
     }

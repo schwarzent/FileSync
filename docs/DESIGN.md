@@ -1,6 +1,6 @@
 # FileSync 实现约定
 
-Windows 10/11，本地浏览器界面。每条同步任务支持默认单向和可选双向同步，只有点击执行才写入文件夹；新增、覆盖、删除及类型变更均先预览。不提供文件内容自动合并或后台自动同步。OneDrive 中继是后续方向，当前不实现。
+Windows 10/11，本地浏览器界面。局域网任务支持默认单向和可选双向同步；OneDrive 中继任务支持按原始修改时间合并、手动发布和预览接收。只有点击执行才写入资料文件夹；不提供文件内容自动合并或后台自动同步。
 
 ## 数据与恢复
 
@@ -28,6 +28,16 @@ Windows 10/11，本地浏览器界面。每条同步任务支持默认单向和�
 - 结构冲突按最上层冲突目录分组。冲突处理接口只接受当前冲突路径和 `local`／`remote`，允许分批选择；每次生成新的预览记录，完整保留原始两端快照。选择目录采用该端整个子树，选择不存在的一端删除整个冲突范围。全部选择完成后验证父子结构，再允许执行；选择前及执行前均重新检查文件变化。
 - 界面支持逐项选择、勾选批量处理、跨页全选、全部采用某端，以及批量选择后的逐项调整。选择和应用选择均不修改同步目录，最终变更仍需点击执行。
 
+## OneDrive 中继与时间校验
+
+- `Profile.Transport` 缺省为 `lan`，旧配置保持原有行为；`onedrive` 任务使用 `RelayPath` 和 `latest` 模式，无需配对设备。中继、资料、备份和程序数据路径必须分离。界面只读检测当前用户的 OneDrive 路径，用户选择具体中继目录；程序不读取 OneDrive 凭据、不调用 Graph、不控制客户端。
+- OneDrive 扫描额外记录文件、目录和根目录的 UTC 创建时间，使用 .NET ticks 保留 100 ns 精度；局域网默认扫描及旧版本记录不新增创建时间约束。`TransactionFiles` 在清单包含创建时间时恢复该时间，目录与根目录最后恢复。接收后逐项重新扫描比较，文件系统无法精确保存时明确校验失败。
+- `snapshots/<随机编号>.json` 保存格式版本、原始清单与目录 SHA-256，`objects/<SHA-256>` 保存去重的文件内容。目录哈希使用自身元数据及名称排序的直接子项计算；目录子项引用其子树哈希，根目录和空目录均参与。`current.json` 同时引用快照编号及清单字节的 SHA-256，禁止通过未校验的云端条目决定本机路径。
+- 发布先读取清单、合并已有中继和本机内容、验证所有内容，再复查本机扫描及已有发布记录，最后写入新发布记录；内容先写 `pending/<编号>/`、刷新磁盘并校验后重命名至固定哈希路径。传输顺序、对象与清单落到云端的顺序不构成完成依据。接收必须验证发布记录、快照编号、格式版本、所有文件哈希、目录哈希及父子路径；不完整或损坏时不修改本机资料。每次操作只确认本机中继状态，无法据此宣称云端上传完成。
+- 文件按原始修改时间取较新版本，独有文件保留，不自动传播删除。不同内容且同时间、类型变更及大小写结构差异产生冲突，复用逐项/批量选择界面。显式选择本机版本并成功接收后，若该子树和中继都未再次变化，后续发布可采用已确认的选择。发布同时保留已存在的较新中继内容，防止旧设备再次发布时丢失新版本。
+- 中继发布不提供跨设备原子写入，需顺序发布、等待 OneDrive 完成同步；同时离线发布可能被客户端生成冲突副本。历史快照及中断材料保留，不自动清理。接收复用现有暂存、版本库、备份、恢复及撤销机制，暂存前后检查本机与中继变化。
+- 路径校验仅允许 `IO_REPARSE_TAG_CLOUD` 至 `CLOUD_F` 的 Cloud Files 标记，通过打开重解析点本身读取标记。符号链接、目录联接及其他标记仍拒绝。占位内容通过正常文件读取触发 OneDrive 按需下载，客户端失败直接暴露。
+
 ## 安全
 
 - 局域网接口仅 HTTPS，TLS 1.2/1.3。每台设备生成独立自签名证书，配对后双方按 SHA-256 证书指纹验证，每次请求要求客户端证书。
@@ -49,5 +59,9 @@ Windows 10/11，本地浏览器界面。每条同步任务支持默认单向和�
 - [Go 标准库 TLS](https://pkg.go.dev/crypto/tls)
 - [Schannel 内存私钥限制](https://learn.microsoft.com/en-us/dotnet/core/extensions/sslstream-troubleshooting)
 - [Windows Common Item Dialog](https://learn.microsoft.com/en-us/windows/win32/shell/common-file-dialog)
+- [OneDrive 本机文件同步](https://support.microsoft.com/en-us/onedrive/sync-your-computer-s-files-and-folders-with-onedrive)
+- [OneDrive Files On-Demand](https://learn.microsoft.com/en-us/onedrive/files-on-demand-windows)
+- [Windows 重解析点标记](https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-point-tags)
+- [Windows 创建和修改时间](https://learn.microsoft.com/en-us/windows/win32/fileio/setting-and-getting-the-timestamp-of-a-file)
 
 这些机制减少未授权访问与传输篡改风险；实际防火墙规则和跨机网络行为仍需真实 Windows 局域网验收。

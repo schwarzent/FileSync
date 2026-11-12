@@ -16,6 +16,8 @@ public static class ConfigurationRoutes
     {
         public string Mode { get; init; } = SyncModes.OneWay;
         public string IgnorePatterns { get; init; } = "";
+        public string Transport { get; init; } = SyncTransports.Lan;
+        public string? RelayPath { get; init; }
     }
 
     public static void Map(WebApplication app)
@@ -57,9 +59,12 @@ public static class ConfigurationRoutes
         var target = PathPolicy.Root(request.TargetPath);
         if (!Directory.Exists(target)) throw new UserError("目标文件夹不存在，请先创建或选择已有文件夹。");
         var profile = new Profile(request.Id is null ? StateStore.NewId() : StateStore.SafeId(request.Id),
-            Name(request.Name), request.PeerId, StateStore.SafeId(request.ShareId), target,
+            Name(request.Name), request.PeerId,
+            request.Transport == SyncTransports.OneDrive ? "" : StateStore.SafeId(request.ShareId), target,
             string.IsNullOrWhiteSpace(request.BackupPath) ? null : PathPolicy.Root(request.BackupPath))
-        { SourceName = request.SourceName, Mode = request.Mode, IgnorePatterns = request.IgnorePatterns };
+        { SourceName = request.SourceName, Mode = request.Mode, IgnorePatterns = request.IgnorePatterns,
+            Transport = request.Transport,
+            RelayPath = request.RelayPath is null ? null : PathPolicy.Root(request.RelayPath) };
         return store.Update(s => s with { Profiles = s.Profiles.Where(x => x.Id != profile.Id).Append(profile).ToArray() });
     }
 

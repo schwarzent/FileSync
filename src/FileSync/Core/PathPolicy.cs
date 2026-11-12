@@ -56,7 +56,8 @@ public static class PathPolicy
         for (var current = new DirectoryInfo(path); current is not null; current = current.Parent)
         {
             if ((current.Exists || File.Exists(current.FullName)) &&
-                (File.GetAttributes(current.FullName) & FileAttributes.ReparsePoint) != 0)
+                (File.GetAttributes(current.FullName) & FileAttributes.ReparsePoint) != 0 &&
+                !Platform.CloudFiles.IsPlaceholder(current.FullName))
                 throw new UserError($"不支持符号链接或目录联接：{current.FullName}");
         }
     }

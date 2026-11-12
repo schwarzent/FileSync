@@ -1,6 +1,7 @@
 using System.Net;
 using FileSync.Core;
 using FileSync.Network;
+using FileSync.OneDrive;
 using FileSync.Platform;
 using FileSync.Security;
 using FileSync.Sync;
@@ -33,7 +34,9 @@ public static class AppHost
         builder.Services.AddSingleton<Discovery>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Discovery>());
         builder.Services.AddSingleton<PeerClient>();
-        builder.Services.AddSingleton<IRemoteFiles>(sp => sp.GetRequiredService<PeerClient>());
+        builder.Services.AddSingleton<OneDriveFiles>();
+        builder.Services.AddSingleton<OneDrivePublisher>();
+        builder.Services.AddSingleton<IRemoteFiles, RemoteFiles>();
         builder.Services.AddSingleton<Pairing>();
         builder.Services.AddSingleton<TransactionFiles>();
         builder.Services.AddSingleton<SyncEngine>();

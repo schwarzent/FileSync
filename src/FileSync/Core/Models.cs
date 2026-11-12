@@ -14,22 +14,34 @@ public sealed record Profile(string Id, string Name, string PeerId, string Share
     public string? SourceName { get; init; }
     public string Mode { get; init; } = SyncModes.OneWay;
     public string IgnorePatterns { get; init; } = "";
+    public string Transport { get; init; } = SyncTransports.Lan;
+    public string? RelayPath { get; init; }
 }
 public static class SyncModes
 {
     public const string OneWay = "one-way";
     public const string TwoWay = "two-way";
+    public const string Latest = "latest";
+}
+public static class SyncTransports
+{
+    public const string Lan = "lan";
+    public const string OneDrive = "onedrive";
 }
 public sealed record Settings(string Name, IReadOnlyList<Share> Shares,
     IReadOnlyList<Peer> Peers, IReadOnlyList<Profile> Profiles)
 {
     public static Settings Empty => new(Environment.MachineName, [], [], []);
 }
-public sealed record Entry(string Path, bool Directory, long Length, long ModifiedTicks, string? Hash);
+public sealed record Entry(string Path, bool Directory, long Length, long ModifiedTicks, string? Hash)
+{
+    public long? CreatedTicks { get; init; }
+}
 public sealed record Manifest(long RootModifiedTicks, IReadOnlyList<Entry> Entries)
 {
     public string IgnorePatterns { get; init; } = "";
     public IReadOnlyList<string> ExcludedPaths { get; init; } = [];
+    public long? RootCreatedTicks { get; init; }
 }
 public sealed record Change(string Kind, string Path, Entry? Before, Entry? After);
 public sealed record SyncPlan(string Id, Profile Profile, Manifest Local, Manifest Remote,

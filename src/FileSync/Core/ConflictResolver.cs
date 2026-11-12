@@ -7,8 +7,8 @@ public static class ConflictResolver
 
     public static SyncPlan Resolve(SyncPlan plan, IReadOnlyDictionary<string, string> choices)
     {
-        if (plan.Profile.Mode != SyncModes.TwoWay || plan.Conflicts.Count == 0)
-            throw new UserError("此预览没有待处理的双向冲突。", 409);
+        if (plan.Profile.Mode is not (SyncModes.TwoWay or SyncModes.Latest) || plan.Conflicts.Count == 0)
+            throw new UserError("此预览没有待处理的同步冲突。", 409);
         var conflicts = plan.Conflicts.ToHashSet(StringComparer.Ordinal);
         if (choices is null || choices.Count == 0 || choices.Any(c => !conflicts.Contains(c.Key) || c.Value is not (Local or Remote)))
             throw new UserError("请选择有效的冲突路径及本机或远端版本。");
@@ -21,7 +21,7 @@ public static class ConflictResolver
         }
         return plan with { Id = StateStore.NewId(), CreatedUtc = DateTime.UtcNow, Merged = desired,
             Conflicts = remaining, Changes = Planner.Compare(plan.Local, desired),
-            RemoteChanges = Planner.Compare(plan.Remote, desired) };
+            RemoteChanges = plan.Profile.Mode == SyncModes.TwoWay ? Planner.Compare(plan.Remote, desired) : [] };
     }
 
     private static Manifest SelectEntries(SyncPlan plan, IReadOnlyDictionary<string, string> choices)
