@@ -46,7 +46,8 @@ public sealed partial class PeerClient(StateStore store, SecureTransport transpo
     public async Task<Manifest> Manifest(Profile profile, CancellationToken token)
     {
         using var client = Connect(Find(profile.PeerId));
-        using var response = await client.GetAsync($"peer/manifest/{StateStore.SafeId(profile.ShareId)}", token);
+        using var response = await client.PostAsJsonAsync($"peer/manifest/{StateStore.SafeId(profile.ShareId)}",
+            new ManifestRequest(profile.IgnorePatterns), token);
         await Check(response, token);
         return await response.Content.ReadFromJsonAsync<Manifest>(token) ?? throw new UserError("远端清单为空。");
     }
@@ -82,3 +83,5 @@ public sealed partial class PeerClient(StateStore store, SecureTransport transpo
             throw new UserError($"设备请求失败（{(int)response.StatusCode}）：{await response.Content.ReadAsStringAsync(token)}", 502);
     }
 }
+
+public sealed record ManifestRequest(string IgnorePatterns);

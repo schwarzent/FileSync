@@ -14,11 +14,14 @@ public sealed partial class SyncEngine
         var previous = last is null ? null : ReadArchivedPlan(last.Id);
         var baseline = previous?.Profile.Mode == SyncModes.TwoWay &&
             previous.Profile.PeerId == plan.Profile.PeerId && previous.Profile.ShareId == plan.Profile.ShareId &&
-            previous.Profile.TargetPath == plan.Profile.TargetPath ? previous.Desired : null;
+            previous.Profile.TargetPath == plan.Profile.TargetPath
+                ? SyncScope.Filter(previous.Desired, plan.Local.IgnorePatterns) : null;
         var merged = TwoWayPlanner.Merge(plan.Local, plan.Remote, baseline);
-        if (merged.Conflicts.Count == 0) FileScanner.Validate(merged.Manifest, plan.Profile.TargetPath);
-        return plan with { Merged = merged.Manifest, Conflicts = merged.Conflicts,
-            Changes = Planner.Compare(plan.Local, merged.Manifest), RemoteChanges = Planner.Compare(plan.Remote, merged.Manifest) };
+        var desired = merged.Conflicts.Count > 0 ? merged.Manifest :
+            SyncScope.Preserve(SyncScope.Preserve(merged.Manifest, plan.Local), plan.Remote);
+        if (merged.Conflicts.Count == 0) FileScanner.Validate(desired, plan.Profile.TargetPath);
+        return plan with { Merged = desired, Conflicts = merged.Conflicts,
+            Changes = Planner.Compare(plan.Local, desired), RemoteChanges = Planner.Compare(plan.Remote, desired) };
     }
 
     private async Task<Revision> ApplyTwoWay(SyncPlan plan, Revision revision, CancellationToken token)
@@ -38,7 +41,7 @@ public sealed partial class SyncEngine
         SetPhase("writing");
         Save(revision with { Status = "writing" });
         await Transactions.Control(new(plan.Profile, plan.Id, "commit"), CancellationToken.None);
-        if (!FileScanner.Equal(await scanner.Scan(plan.Profile.TargetPath, CancellationToken.None), plan.Local))
+        if (!FileScanner.Equal(await ScanLocal(plan, CancellationToken.None), plan.Local))
             throw new UserError("远端写入期间本机文件已改变，请恢复后重新预览。", 409);
         revision = revision with { Status = "writing", LocalWriteStarted = true };
         Save(revision);
@@ -59,7 +62,7 @@ public sealed partial class SyncEngine
 
     private async Task CheckDesired(SyncPlan plan, CancellationToken token)
     {
-        if (!FileScanner.Equal(await scanner.Scan(plan.Profile.TargetPath, token), plan.Desired) ||
+        if (!FileScanner.Equal(await ScanLocal(plan, token), plan.Desired) ||
             !FileScanner.Equal(await remote.Manifest(plan.Profile, token), plan.Desired))
             throw new UserError("双向同步后校验失败，请从版本记录恢复。", 409);
     }
@@ -95,7 +98,7 @@ public sealed partial class SyncEngine
             if (revision.LocalWriteStarted)
             {
                 files.Rollback(plan);
-                if (!FileScanner.Equal(await scanner.Scan(plan.Profile.TargetPath, CancellationToken.None), plan.Local))
+                if (!FileScanner.Equal(await ScanLocal(plan, CancellationToken.None), plan.Local))
                     throw new UserError("本机恢复校验失败，请保留版本目录。", 409);
             }
             return Save(revision with { Status = "reverted", Error = null });
@@ -105,7 +108,7 @@ public sealed partial class SyncEngine
 
     private async Task CheckOriginal(SyncPlan plan, CancellationToken token)
     {
-        if (!FileScanner.Equal(await scanner.Scan(plan.Profile.TargetPath, token), plan.Local) ||
+        if (!FileScanner.Equal(await ScanLocal(plan, token), plan.Local) ||
             !FileScanner.Equal(await remote.Manifest(plan.Profile, token), plan.Remote))
             throw new UserError("双向恢复校验失败，请保留两台设备的版本目录。", 409);
     }

@@ -5,6 +5,7 @@ namespace FileSync.Core;
 public sealed record Share(string Id, string Name, string Path)
 {
     public bool AllowWrite { get; init; }
+    public string IgnorePatterns { get; init; } = "";
 }
 public sealed record Peer(string Id, string Name, string Address, int Port);
 public sealed record Profile(string Id, string Name, string PeerId, string ShareId,
@@ -12,6 +13,7 @@ public sealed record Profile(string Id, string Name, string PeerId, string Share
 {
     public string? SourceName { get; init; }
     public string Mode { get; init; } = SyncModes.OneWay;
+    public string IgnorePatterns { get; init; } = "";
 }
 public static class SyncModes
 {
@@ -24,7 +26,11 @@ public sealed record Settings(string Name, IReadOnlyList<Share> Shares,
     public static Settings Empty => new(Environment.MachineName, [], [], []);
 }
 public sealed record Entry(string Path, bool Directory, long Length, long ModifiedTicks, string? Hash);
-public sealed record Manifest(long RootModifiedTicks, IReadOnlyList<Entry> Entries);
+public sealed record Manifest(long RootModifiedTicks, IReadOnlyList<Entry> Entries)
+{
+    public string IgnorePatterns { get; init; } = "";
+    public IReadOnlyList<string> ExcludedPaths { get; init; } = [];
+}
 public sealed record Change(string Kind, string Path, Entry? Before, Entry? After);
 public sealed record SyncPlan(string Id, Profile Profile, Manifest Local, Manifest Remote,
     IReadOnlyList<Change> Changes, DateTime CreatedUtc)

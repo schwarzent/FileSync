@@ -3,7 +3,10 @@ using FileSync.Core;
 
 namespace FileSync.Network;
 
-public sealed record RemotePreparation(string ShareId, Manifest Before, Manifest After);
+public sealed record RemotePreparation(string ShareId, Manifest Before, Manifest After)
+{
+    public string IgnorePatterns { get; init; } = "";
+}
 public sealed record UploadRequest(Profile Profile, string PlanId, Entry Entry);
 public sealed record RemoteCommand(Profile Profile, string Id, string Action);
 public sealed record TransactionState(string Status);
@@ -22,7 +25,7 @@ public sealed partial class PeerClient : IRemoteTransactions
     {
         using var client = Connect(Find(profile.PeerId));
         using var response = await client.PostAsJsonAsync(TransactionUrl(plan.Id),
-            new RemotePreparation(profile.ShareId, plan.Remote, plan.Desired), token);
+            new RemotePreparation(profile.ShareId, plan.Remote, plan.Desired) { IgnorePatterns = profile.IgnorePatterns }, token);
         await Check(response, token);
     }
 

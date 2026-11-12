@@ -7,21 +7,29 @@ public sealed class FileScanner
     public const int BufferSize = 128 * 1024;
     private const int HashHexLength = 64;
 
-    public async Task<Manifest> Scan(string root, CancellationToken token)
+    public async Task<Manifest> Scan(string root, CancellationToken token, string ignorePatterns = "")
     {
         PathPolicy.AssertNoLinks(root);
         if (!Directory.Exists(root)) throw new UserError($"文件夹不存在：{root}");
         var entries = new List<Entry>();
+        var excluded = new List<string>();
+        var rules = new IgnoreRules(ignorePatterns);
         var pending = new Stack<string>();
         pending.Push(root);
         while (pending.TryPop(out var folder))
         {
             token.ThrowIfCancellationRequested();
             foreach (var path in Directory.EnumerateFileSystemEntries(folder))
+            {
+                token.ThrowIfCancellationRequested();
+                var relative = Path.GetRelativePath(root, path).Replace('\\', '/');
+                if (rules.Excludes(relative, Directory.Exists(path))) { excluded.Add(relative); continue; }
                 await ReadEntry(new ScanContext(root, path, entries, pending), token);
+            }
         }
         return new(Directory.GetLastWriteTimeUtc(root).Ticks,
-            entries.OrderBy(e => e.Path, StringComparer.OrdinalIgnoreCase).ToArray());
+            entries.OrderBy(e => e.Path, StringComparer.OrdinalIgnoreCase).ToArray())
+            { IgnorePatterns = ignorePatterns, ExcludedPaths = excluded };
     }
 
     private sealed record ScanContext(string Root, string Path, List<Entry> Entries, Stack<string> Pending);
@@ -50,11 +58,15 @@ public sealed class FileScanner
     });
 
     public static bool Equal(Manifest first, Manifest second) =>
-        first.RootModifiedTicks == second.RootModifiedTicks && first.Entries.SequenceEqual(second.Entries);
+        first.IgnorePatterns == second.IgnorePatterns && first.RootModifiedTicks == second.RootModifiedTicks &&
+        first.Entries.SequenceEqual(second.Entries);
 
     public static void Validate(Manifest? manifest, string target)
     {
         if (manifest?.Entries is null) throw new UserError("远端文件清单为空。");
+        _ = new IgnoreRules(manifest.IgnorePatterns);
+        if (manifest.ExcludedPaths is null || manifest.ExcludedPaths.Any(string.IsNullOrEmpty))
+            throw new UserError("远端忽略路径清单无效。");
         if (!ValidTicks(manifest.RootModifiedTicks))
             throw new UserError("远端根目录时间无效。");
         var paths = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);

@@ -10,10 +10,12 @@ public static class ConfigurationRoutes
     {
         public string? Id { get; init; }
         public bool AllowWrite { get; init; }
+        public string IgnorePatterns { get; init; } = "";
     }
     private sealed record ProfileRequest(string? Id, string Name, string PeerId, string ShareId, string TargetPath, string? BackupPath, string? SourceName)
     {
         public string Mode { get; init; } = SyncModes.OneWay;
+        public string IgnorePatterns { get; init; } = "";
     }
 
     public static void Map(WebApplication app)
@@ -34,7 +36,6 @@ public static class ConfigurationRoutes
                 Peers = s.Peers.Where(x => x.Id != id).ToArray(),
                 Profiles = s.Profiles.Where(x => x.PeerId != id).ToArray()
             }))));
-        app.MapGet("/api/folders", (string? path) => Browse(path));
     }
 
     private static Settings AddShare(StateStore store, ShareRequest request)
@@ -46,7 +47,8 @@ public static class ConfigurationRoutes
         if (request.Id is not null && existing is null) throw new UserError("共享不存在。", 404);
         if (existing is not null && existing.Path != path)
             throw new UserError("已发布共享的路径不可修改，请重新发布文件夹。");
-        var share = new Share(id, Name(request.Name), path) { AllowWrite = request.AllowWrite };
+        var share = new Share(id, Name(request.Name), path)
+            { AllowWrite = request.AllowWrite, IgnorePatterns = request.IgnorePatterns };
         return store.Update(s => s with { Shares = s.Shares.Where(x => x.Id != id).Append(share).ToArray() });
     }
 
@@ -57,26 +59,11 @@ public static class ConfigurationRoutes
         var profile = new Profile(request.Id is null ? StateStore.NewId() : StateStore.SafeId(request.Id),
             Name(request.Name), request.PeerId, StateStore.SafeId(request.ShareId), target,
             string.IsNullOrWhiteSpace(request.BackupPath) ? null : PathPolicy.Root(request.BackupPath))
-        { SourceName = request.SourceName, Mode = request.Mode };
+        { SourceName = request.SourceName, Mode = request.Mode, IgnorePatterns = request.IgnorePatterns };
         return store.Update(s => s with { Profiles = s.Profiles.Where(x => x.Id != profile.Id).Append(profile).ToArray() });
     }
 
     private static string Name(string value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 80 ? value.Trim() :
         throw new UserError("名称需要 1–80 个字符。");
 
-    private static object Browse(string? path)
-    {
-        if (string.IsNullOrEmpty(path)) return new { path = "", parent = (string?)null,
-            folders = DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed)
-                .Select(d => new { name = d.Name, path = d.Name }).ToArray() };
-        if (!Path.IsPathFullyQualified(path) || path.StartsWith(@"\\", StringComparison.Ordinal))
-            throw new UserError("请选择本机文件夹。");
-        var full = Path.GetFullPath(path);
-        PathPolicy.AssertNoLinks(full);
-        return new { path = full, parent = Directory.GetParent(full)?.FullName,
-            folders = Directory.EnumerateDirectories(full).Select(p => new DirectoryInfo(p))
-                .Where(d => (d.Attributes & (FileAttributes.ReparsePoint | FileAttributes.System)) == 0)
-                .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(d => new { name = d.Name, path = d.FullName }).ToArray() };
-    }
 }

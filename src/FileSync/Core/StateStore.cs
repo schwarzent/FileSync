@@ -33,6 +33,7 @@ public sealed class StateStore
     {
         if (string.IsNullOrWhiteSpace(value.Name) || value.Name.Length > 80)
             throw new UserError("设备名称需要 1–80 个字符。");
+        foreach (var share in value.Shares) _ = new IgnoreRules(share.IgnorePatterns);
         var roots = value.Shares.Select(s => PathPolicy.Root(s.Path))
             .Concat(value.Profiles.Select(p => PathPolicy.Root(p.TargetPath))).ToArray();
         foreach (var root in roots) PathPolicy.Disjoint(root, Root);
@@ -40,6 +41,7 @@ public sealed class StateStore
             for (var j = i + 1; j < roots.Length; j++) PathPolicy.Disjoint(roots[i], roots[j]);
         foreach (var profile in value.Profiles)
         {
+            _ = new IgnoreRules(profile.IgnorePatterns);
             if (profile.Mode is not (SyncModes.OneWay or SyncModes.TwoWay))
                 throw new UserError("同步方向无效。");
             if (!value.Peers.Any(p => p.Id == profile.PeerId)) throw new UserError("配对设备不存在。");

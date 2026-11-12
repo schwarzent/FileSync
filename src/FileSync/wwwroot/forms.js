@@ -1,38 +1,36 @@
-import { el, icon, button, field, input, select, showDialog, toast, note } from './ui.js';
+import { el, button, field, input, select, showDialog, toast, note } from './ui.js';
 
 export function folderInput(value, context) {
   const node = input(value, { placeholder: '例如 D:\\Documents\\项目资料', required: true });
   const browse = button('浏览', context.act(async () => {
-    const parent = document.querySelector('#modal');
-    const saved = [...parent.childNodes];
-    const choose = async path => {
-      const data = await context.api(`/folders?path=${encodeURIComponent(path || '')}`);
-      const list = el('div', { class: 'folder-list' }, data.folders.map(folder =>
-        button(folder.name, context.act(() => choose(folder.path)), { icon: 'folder', class: 'folder-item' })));
-      const back = button('上一级', context.act(() => choose(data.parent)), { icon: 'arrow', disabled: !data.path });
-      const dialog = showDialog('选择本机文件夹', [el('p', { class: 'path' }, data.path || '本机磁盘'), back, list], [
-        button('返回', () => { dialog.close(); dialog.replaceChildren(...saved); dialog.showModal(); }),
-        button('选择此文件夹', () => { node.value = data.path; dialog.close(); dialog.replaceChildren(...saved); dialog.showModal(); }, { class: 'primary', disabled: !data.path })
-      ]);
-    };
-    await choose('');
+    const result = await context.api('/folders/pick', { path: node.value.trim() || null });
+    if (result.path !== null) { node.value = result.path; node.dispatchEvent(new Event('change', { bubbles: true })); }
   }), { icon: 'folder' });
   return { node, row: el('div', { class: 'input-row' }, [node, browse]) };
+}
+
+function ignoreInput(value = '') {
+  const node = el('textarea', { value, spellcheck: false, class: 'ignore-patterns',
+    placeholder: '# 每行一条，使用 / 分隔\n.git/\nnode_modules/\n/build/\n**/cache/\n*.tmp' });
+  return { node, field: field('忽略规则', node, '相对同步根目录，每行一条；支持 *、**、?、# 注释。目录以 / 结尾；不支持 ! 或 []。忽略的目录不扫描、不传输，原有内容保留。') };
 }
 
 export function shareForm(context, existing) {
   const name = input(existing?.name || '', { required: true, maxLength: 80, placeholder: '例如 工作资料' });
   const path = folderInput(existing?.path || '', context);
   const allowWrite = input('', { type: 'checkbox', checked: Boolean(existing?.allowWrite) });
+  const ignored = ignoreInput(existing?.ignorePatterns);
   const save = context.act(async () => {
     if (!name.reportValidity() || !path.node.reportValidity()) return;
-    await context.api('/shares', { id: existing?.id, name: name.value, path: path.node.value, allowWrite: allowWrite.checked });
+    await context.api('/shares', { id: existing?.id, name: name.value, path: path.node.value,
+      allowWrite: allowWrite.checked, ignorePatterns: ignored.node.value });
     document.querySelector('#modal').close();
     toast('共享设置已保存。');
     await context.refresh();
   });
   showDialog(existing ? '编辑共享文件夹' : '发布本机源文件夹', [note('已配对的设备可读取此文件夹。允许双向写入后，配对设备可手动同步修改和删除。'),
-    field('名称', name), field('源文件夹', path.row), el('label', { class: 'checkbox-row' }, [allowWrite, '允许配对设备双向写入'])],
+    field('名称', name), field('源文件夹', path.row), ignored.field,
+    el('label', { class: 'checkbox-row' }, [allowWrite, '允许配对设备双向写入'])],
     [button('保存共享', save, { class: 'primary', icon: 'check' })]);
 }
 
@@ -45,7 +43,8 @@ async function profileFields(context, existing) {
   const target = folderInput(existing?.targetPath || '', context);
   const backup = folderInput(existing?.backupPath || '', context);
   const enabled = input('', { type: 'checkbox', checked: Boolean(existing?.backupPath) });
-  const backupField = field('完整备份位置', backup.row, '每次同步前备份整个目标文件夹。历史备份保留在所选位置。');
+  const backupField = field('完整备份位置', backup.row, '每次同步前备份目标文件夹中参与同步的内容，忽略项不读取。历史备份保留在所选位置。');
+  const ignored = ignoreInput(existing?.ignorePatterns);
   backupField.hidden = !enabled.checked;
   enabled.addEventListener('change', () => { backupField.hidden = !enabled.checked; });
   const loadShares = async () => {
@@ -57,12 +56,12 @@ async function profileFields(context, existing) {
     share.disabled = false;
   };
   peer.addEventListener('change', context.act(loadShares));
-  return { name, peer, share, mode, target, backup, enabled, backupField, loadShares };
+  return { name, peer, share, mode, target, backup, enabled, backupField, ignored, loadShares };
 }
 
 export async function profileForm(context, existing) {
   if (!context.getState().settings.peers.length) { pairingForm(context); return; }
-  const { name, peer, share, mode, target, backup, enabled, backupField, loadShares } = await profileFields(context, existing);
+  const { name, peer, share, mode, target, backup, enabled, backupField, ignored, loadShares } = await profileFields(context, existing);
   const save = context.act(async () => {
     if (!name.reportValidity() || !target.node.reportValidity()) return;
     if (!share.value || share.disabled) throw new Error('请先在远端发布源文件夹，再选择它。');
@@ -71,13 +70,15 @@ export async function profileForm(context, existing) {
     if (enabled.checked && !backup.node.value.trim()) throw new Error('请选择完整备份位置。');
     await context.api('/profiles', { id: existing?.id, name: name.value, peerId: peer.value, shareId: share.value,
       targetPath: target.node.value, backupPath: enabled.checked ? backup.node.value : null,
-      sourceName: share.selectedOptions[0].textContent.replace(/（允许双向）$|（只读）$/, ''), mode: mode.value });
+      sourceName: share.selectedOptions[0].textContent.replace(/（允许双向）$|（只读）$/, ''), mode: mode.value,
+      ignorePatterns: ignored.node.value });
     document.querySelector('#modal').close();
     toast('同步任务已保存。');
     await context.refresh();
   });
   showDialog(existing ? '编辑同步任务' : '新建同步任务', [note('单向使本机与远端一致；双向首次合并独有文件，后续传播两边的修改和删除。同一文件两边都改动时需先处理冲突。'),
     field('任务名称', name), field('同步方向', mode), field('远端设备', peer), field('远端源文件夹', share), field('本机目标文件夹', target.row),
+    ignored.field,
     el('label', { class: 'checkbox-row' }, [enabled, '启用同步前完整备份']), backupField,
     el('small', {}, '被覆盖和删除的文件保留在各自设备的版本库。双向任务的撤销会恢复两端。')],
   [button('保存任务', save, { class: 'primary', icon: 'check' })]);

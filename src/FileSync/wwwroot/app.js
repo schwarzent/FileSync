@@ -1,5 +1,6 @@
 import { el, icon, button, showDialog, toast, date, note, bytes } from './ui.js';
 import { syncView, devicesView, historyView, settingsView, changesList, statusLabels } from './views.js';
+import { showPreview } from './preview.js';
 
 const session = document.querySelector('meta[name="filesync-session"]').content;
 const pages = { sync: ['同步任务', syncView], devices: ['局域网设备', devicesView], history: ['版本记录', historyView], settings: ['设置', settingsView] };
@@ -86,36 +87,15 @@ async function preview(id) {
   schedule();
   try {
     const plan = await api(`/profiles/${id}/preview`, {});
-    const combined = [...plan.changes, ...plan.remoteChanges];
-    const counts = Object.fromEntries(['add', 'update', 'delete', 'replace', 'metadata'].map(kind => [kind, combined.filter(c => c.kind === kind).length]));
-    const summary = el('div', { class: 'preview-summary' }, [
-      `新增 ${counts.add}`, `更新 ${counts.update + counts.replace}`, `删除 ${counts.delete}`, `时间 ${counts.metadata}`
-    ].map(text => el('span', {}, text)));
-    const twoWay = plan.profile.mode === 'two-way';
-    const dialog = showDialog('同步预览', [note(`${plan.profile.name}：${twoWay ? '将合并两端内容，以下分别列出本机与远端修改。' : '本机目标将与远端一致。'}`),
-      summary, el('p', { class: 'path' }, plan.profile.targetPath),
-      ...previewChanges(plan)],
-    [button('返回', () => dialog.close()), button('执行同步', act(async () => {
-      dialog.close();
+    showPreview(context, plan, async resolved => {
       localOperation = true;
       schedule();
       try {
-        await api(`/plans/${plan.id}/execute`, {});
+        await api(`/plans/${resolved.id}/execute`, {});
         toast('同步完成，文件与目录时间已校验。');
       } finally { localOperation = false; await refresh(); }
-    }), { class: 'primary', icon: 'sync', disabled: plan.conflicts.length > 0 })]);
+    });
   } finally { localOperation = false; await refresh(); }
-}
-
-function previewChanges(plan) {
-  const nodes = [];
-  if (plan.conflicts.length) nodes.push(note('检测到冲突，请在两端处理以下文件后重新预览。'),
-    ...plan.conflicts.map(path => el('p', { class: 'path' }, path)));
-  if (plan.profile.mode === 'two-way') nodes.push(el('h3', {}, '本机修改'));
-  nodes.push(plan.changes.length ? changesList(plan.changes) : el('p', {}, '本机文件内容一致。'));
-  if (plan.profile.mode === 'two-way') nodes.push(el('h3', {}, '远端修改'),
-    plan.remoteChanges.length ? changesList(plan.remoteChanges) : el('p', {}, '远端文件内容一致。'));
-  return nodes;
 }
 
 function revisionDetails(revision) {

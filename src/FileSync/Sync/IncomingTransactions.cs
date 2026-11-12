@@ -21,9 +21,18 @@ public sealed class IncomingTransactions(IncomingServices services, SyncEngine e
         if (File.Exists(store.RevisionPath(id))) throw new UserError("事务编号已存在。", 409);
         FileScanner.Validate(preparation.Before, share.Path);
         FileScanner.Validate(preparation.After, share.Path);
-        if (!FileScanner.Equal(await scanner.Scan(share.Path, token), preparation.Before))
+        var patterns = IgnoreRules.Combine(share.IgnorePatterns, preparation.IgnorePatterns);
+        if (preparation.Before.IgnorePatterns != patterns || preparation.After.IgnorePatterns != patterns)
+            throw new UserError("共享忽略规则已改变，请重新预览。", 409);
+        SyncScope.Validate(preparation.Before);
+        SyncScope.Validate(preparation.After);
+        var current = await scanner.Scan(share.Path, token, patterns);
+        if (!FileScanner.Equal(current, preparation.Before))
             throw new UserError("远端文件夹自预览后已改变，请重新预览。", 409);
-        var profile = new Profile(share.Id, "双向接收：" + share.Name, request.Owner, share.Id, share.Path, null);
+        if (!SyncScope.Preserve(preparation.After, current).Entries.SequenceEqual(preparation.After.Entries))
+            throw new UserError("事务不能删除包含忽略内容的目录。", 409);
+        var profile = new Profile(share.Id, "双向接收：" + share.Name, request.Owner, share.Id, share.Path, null)
+            { IgnorePatterns = preparation.IgnorePatterns };
         var plan = new SyncPlan(id, profile, preparation.Before, preparation.After,
             Planner.Compare(preparation.Before, preparation.After), DateTime.UtcNow) { OwnerPeerId = request.Owner };
         Directory.CreateDirectory(store.VaultPath(id));
@@ -34,7 +43,7 @@ public sealed class IncomingTransactions(IncomingServices services, SyncEngine e
     public Task<Revision> Upload(IncomingUpload upload, CancellationToken token) => engine.Exclusive(async () =>
     {
         var plan = Read(upload.Request);
-        Writable(plan.Profile.ShareId);
+        Writable(plan);
         RequireStatus(plan.Id, "staging");
         var entry = plan.Changes.FirstOrDefault(c => c.Path == upload.Path && c.Kind != "metadata" && c.After is { Directory: false })?.After
             ?? throw new UserError("上传文件不在事务清单中。");
@@ -68,9 +77,9 @@ public sealed class IncomingTransactions(IncomingServices services, SyncEngine e
     public Task<Revision> Commit(IncomingRequest request, CancellationToken token) => engine.Exclusive(async () =>
     {
         var plan = Read(request);
-        Writable(plan.Profile.ShareId);
+        Writable(plan);
         var revision = RequireStatus(plan.Id, "staging");
-        if (!FileScanner.Equal(await scanner.Scan(plan.Profile.TargetPath, token), plan.Local))
+        if (!FileScanner.Equal(await Scan(plan, token), plan.Local))
             throw new UserError("远端文件夹在传输期间已改变，请恢复后重新预览。", 409);
         foreach (var entry in plan.Changes.Where(c => c.After is { Directory: false } && c.Kind != "metadata").Select(c => c.After!))
             await TransactionFiles.VerifyFile(files.Stage(plan, entry), entry, token);
@@ -78,7 +87,7 @@ public sealed class IncomingTransactions(IncomingServices services, SyncEngine e
         Save(revision with { Status = "writing", LocalWriteStarted = true });
         files.Archive(plan);
         files.Install(plan);
-        if (!FileScanner.Equal(await scanner.Scan(plan.Profile.TargetPath, CancellationToken.None), plan.Remote))
+        if (!FileScanner.Equal(await Scan(plan, CancellationToken.None), plan.Remote))
             throw new UserError("远端写入校验失败，请恢复中断事务。", 409);
         return Save(revision with { Status = "completed", LocalWriteStarted = true });
     });
@@ -95,7 +104,7 @@ public sealed class IncomingTransactions(IncomingServices services, SyncEngine e
         var plan = Read(request);
         RequireStatus(plan.Id, "completed");
         var latest = store.History().FirstOrDefault(r => r.ProfileId == plan.Profile.Id && r.Status == "completed");
-        if (latest?.Id != plan.Id || !FileScanner.Equal(await scanner.Scan(plan.Profile.TargetPath, token), plan.Remote))
+        if (latest?.Id != plan.Id || !FileScanner.Equal(await Scan(plan, token), plan.Remote))
             throw new UserError("远端已有后续同步或文件修改，无法撤销。", 409);
         return new TransactionState("completed");
     });
@@ -116,6 +125,16 @@ public sealed class IncomingTransactions(IncomingServices services, SyncEngine e
 
     private Share Writable(string id) => store.Current.Shares.FirstOrDefault(s => s.Id == id && s.AllowWrite)
         ?? throw new UserError("该共享未允许双向写入，请在远端设备启用。", 403);
+
+    private void Writable(SyncPlan plan)
+    {
+        var share = Writable(plan.Profile.ShareId);
+        if (IgnoreRules.Combine(share.IgnorePatterns, plan.Profile.IgnorePatterns) != plan.Local.IgnorePatterns)
+            throw new UserError("共享忽略规则已改变，请恢复后重新预览。", 409);
+    }
+
+    private Task<Manifest> Scan(SyncPlan plan, CancellationToken token) =>
+        scanner.Scan(plan.Profile.TargetPath, token, plan.Local.IgnorePatterns);
 
     private SyncPlan Read(IncomingRequest request)
     {

@@ -21,8 +21,10 @@ public static class TwoWayPlanner
             if (selection.Entry is not null) entries.Add(selection.Entry);
         }
         conflicts.AddRange(ParentConflicts(entries));
-        return new(new(Math.Max(local.RootModifiedTicks, remote.RootModifiedTicks), entries),
-            conflicts.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+        var roots = conflicts.Distinct(StringComparer.OrdinalIgnoreCase).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return new(new(Math.Max(local.RootModifiedTicks, remote.RootModifiedTicks), entries)
+            { IgnorePatterns = local.IgnorePatterns },
+            roots.Where(path => !IgnoreRules.Ancestors(path).Any(roots.Contains)).ToArray());
     }
 
     private static Dictionary<string, Entry> Index(Manifest value) =>
@@ -55,7 +57,7 @@ public static class TwoWayPlanner
             if (separator < 0) continue;
             var parent = entry.Path[..separator];
             if (!index.TryGetValue(parent, out var directory) || !directory.Directory || directory.Path != parent)
-                yield return entry.Path;
+                yield return parent;
         }
     }
 }
