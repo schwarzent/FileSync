@@ -28,6 +28,7 @@ public static class AppHost
         builder.Services.AddSingleton(store);
         builder.Services.AddSingleton(identity);
         builder.Services.AddSingleton<FileScanner>();
+        builder.Services.AddSingleton<TaskBackupService>();
         builder.Services.AddSingleton<IFolderPicker, FolderPicker>();
         builder.Services.AddSingleton<SecureTransport>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<SecureTransport>());

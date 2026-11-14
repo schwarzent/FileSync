@@ -1,6 +1,7 @@
 import { el, icon, button, heading, empty, input, field, bytes, date, note } from './ui.js';
 import { profileForm, shareForm, pairingForm, confirmAction } from './forms.js';
 import { oneDriveRow } from './onedrive.js';
+import { taskBackupCard } from './backup.js';
 
 function card(title, body, action, subtitle) {
   return el('section', { class: 'card' }, [el('div', { class: 'card-heading' }, [el('div', {}, [el('h2', {}, title), subtitle ? el('small', {}, subtitle) : null]), action]), body]);
@@ -97,7 +98,7 @@ export function settingsView(context) {
   const name = input(state.settings.name, { required: true, maxLength: 80 });
   return [heading('设置', '管理本机名称与文件共享。'), el('div', { class: 'stack' }, [el('section', { class: 'card form-card' }, [el('h2', {}, '本机设备'),
     el('div', { class: 'section-gap' }, field('设备名称', name)), button('保存名称', context.act(async () => { if (name.reportValidity()) { await context.api('/name', { name: name.value }); await context.refresh(); } }), { class: 'primary', icon: 'check' }),
-    el('div', { class: 'section-gap' }, [el('small', {}, '程序数据与版本记录'), el('p', { class: 'path' }, state.dataPath)])]), sourceList(context),
+    el('div', { class: 'section-gap' }, [el('small', {}, '程序数据与版本记录'), el('p', { class: 'path' }, state.dataPath)])]), taskBackupCard(context), sourceList(context),
     el('div', { class: 'notice' }, [icon('lock'), el('span', {}, '同步仅手动执行。设备身份由 Windows 当前用户加密保护；请在两端分别撤销不再使用的配对。')])])];
 }
 
