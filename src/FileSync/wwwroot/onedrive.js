@@ -1,5 +1,6 @@
 import { el, button, field, input, select, showDialog, toast, note } from './ui.js';
 import { folderInput, ignoreInput, confirmAction } from './forms.js';
+import { repositoryHistory } from './repository.js';
 
 export async function oneDriveForm(context, existing) {
   const accounts = await context.api('/onedrive/accounts');
@@ -10,6 +11,8 @@ export async function oneDriveForm(context, existing) {
   const account = select(accounts.map(a => ({ value: a.path, label: `${a.name} · ${a.path}` })));
   account.addEventListener('change', () => { relay.node.value = `${account.value}\\FileSync\\共享资料`; });
   const ignored = ignoreInput(existing?.ignorePatterns);
+  const uploadIgnored = ignoreInput(existing?.uploadIgnorePatterns);
+  const pullIgnored = ignoreInput(existing?.pullIgnorePatterns);
   const backup = folderInput(existing?.backupPath || '', context);
   const enabled = input('', { type: 'checkbox', checked: Boolean(existing?.backupPath) });
   const backupField = field('接收前完整备份位置', backup.row);
@@ -20,17 +23,21 @@ export async function oneDriveForm(context, existing) {
     if (enabled.checked && !backup.node.reportValidity()) return;
     await context.api('/profiles', { id: existing?.id, name: name.value, peerId: '', shareId: '',
       transport: 'onedrive', mode: 'latest', targetPath: target.node.value, relayPath: relay.node.value,
-      backupPath: enabled.checked ? backup.node.value : null, ignorePatterns: ignored.node.value });
+      backupPath: enabled.checked ? backup.node.value : null, ignorePatterns: ignored.node.value,
+      uploadIgnorePatterns: uploadIgnored.node.value, pullIgnorePatterns: pullIgnored.node.value });
     document.querySelector('#modal').close();
     toast('OneDrive 同步任务已保存。');
     await context.refresh();
   });
   showDialog(existing ? '编辑 OneDrive 任务' : '新建 OneDrive 任务', [
-    note('两台电脑使用同一个 OneDrive 中继文件夹。来源端发布后，等待 OneDrive 上传和下载，再在另一端预览接收。'),
+    note('两台电脑连接同一个 OneDrive 仓库。资料保留原文件名和目录；.filesync-repo 保存明文提交历史和历史内容，不加密文件。'),
     field('任务名称', name), field('本机资料文件夹', target.row, '创建时间和修改时间将记录到中继清单，并在接收时恢复、校验。'),
     accounts.length ? field('检测到的本机 OneDrive', account) : note('未检测到 OneDrive 路径，请确认客户端已登录并手动填写中继文件夹。'),
     field('OneDrive 中继文件夹', relay.row, '选择 OneDrive 内独立的子文件夹，与本机资料文件夹分开；两端路径可以不同，但必须对应同一个云端文件夹。'),
-    ignored.field, el('label', { class: 'checkbox-row' }, [enabled, '接收前完整备份']), backupField,
+    ignored.field,
+    field('仅上传时忽略', uploadIgnored.node, '只限制本机提交；仓库中已有的这些文件保留。'),
+    field('仅拉取时忽略', pullIgnored.node, '只限制接收；本机已有的这些文件保留。'),
+    el('label', { class: 'checkbox-row' }, [enabled, '接收前完整备份']), backupField,
     note('按清单中的原始修改时间保留较新版本；同时间异内容需选择版本。独有文件保留，删除不自动传播。发布仅确认本机中继写入完成。')
   ], [button('保存任务', save, { class: 'primary', icon: 'check' })]);
 }
@@ -46,6 +53,7 @@ export function oneDriveRow(profile, context) {
       el('strong', {}, '↔'), el('div', {}, [el('small', {}, 'OneDrive 中继'), el('div', { class: 'path' }, profile.relayPath)])]),
     el('div', { class: 'profile-bottom' }, [el('small', {}, '原始修改时间优先 · 创建与修改时间校验'),
       el('div', { class: 'profile-actions' }, [
+        button('仓库历史', context.act(() => repositoryHistory(context, profile)), { icon: 'history', disabled: busy }),
         button('发布到 OneDrive', context.act(() => context.publish(profile.id)), { icon: 'plus', disabled: busy }),
         button('预览接收', context.act(() => context.preview(profile.id)), { icon: 'sync', class: 'primary', disabled: busy })])])
   ]);

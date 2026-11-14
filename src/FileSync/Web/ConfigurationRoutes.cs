@@ -18,6 +18,8 @@ public static class ConfigurationRoutes
         public string IgnorePatterns { get; init; } = "";
         public string Transport { get; init; } = SyncTransports.Lan;
         public string? RelayPath { get; init; }
+        public string UploadIgnorePatterns { get; init; } = "";
+        public string PullIgnorePatterns { get; init; } = "";
     }
 
     public static void Map(WebApplication app)
@@ -64,7 +66,8 @@ public static class ConfigurationRoutes
             string.IsNullOrWhiteSpace(request.BackupPath) ? null : PathPolicy.Root(request.BackupPath))
         { SourceName = request.SourceName, Mode = request.Mode, IgnorePatterns = request.IgnorePatterns,
             Transport = request.Transport,
-            RelayPath = request.RelayPath is null ? null : PathPolicy.Root(request.RelayPath) };
+            RelayPath = request.RelayPath is null ? null : PathPolicy.Root(request.RelayPath),
+            UploadIgnorePatterns = request.UploadIgnorePatterns, PullIgnorePatterns = request.PullIgnorePatterns };
         return store.Update(s => s with { Profiles = s.Profiles.Where(x => x.Id != profile.Id).Append(profile).ToArray() });
     }
 

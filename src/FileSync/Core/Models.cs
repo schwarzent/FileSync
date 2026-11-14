@@ -16,6 +16,8 @@ public sealed record Profile(string Id, string Name, string PeerId, string Share
     public string IgnorePatterns { get; init; } = "";
     public string Transport { get; init; } = SyncTransports.Lan;
     public string? RelayPath { get; init; }
+    public string UploadIgnorePatterns { get; init; } = "";
+    public string PullIgnorePatterns { get; init; } = "";
 }
 public static class SyncModes
 {

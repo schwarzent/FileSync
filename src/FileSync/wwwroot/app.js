@@ -104,7 +104,7 @@ async function publish(id) {
   try {
     const result = await api(`/profiles/${id}/publish`, {});
     showDialog('已提交 OneDrive 中继', [note(result.message),
-      el('p', {}, `${result.files} 个文件，${result.directories} 个文件夹；原始时间和哈希已记录。`)],
+      el('p', {}, `提交 #${result.sequence} · ${result.changedFiles} 个文件变化；仓库共 ${result.files} 个文件、${result.directories} 个文件夹。原始时间和哈希已记录。`)],
     [button('关闭', () => document.querySelector('#modal').close())]);
   } finally { localOperation = false; await refresh(); }
 }

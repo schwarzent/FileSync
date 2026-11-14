@@ -39,12 +39,14 @@ public static class LocalRoutes
         app.MapPost("/api/history/{id}/undo", (string id, SyncEngine engine, CancellationToken token) => engine.Undo(id, token));
         app.MapPost("/api/history/{id}/recover", (string id, SyncEngine engine, CancellationToken token) => engine.Recover(id, token));
         ConfigurationRoutes.Map(app);
+        RepositoryRoutes.Map(app);
         app.MapGet("/", (RequestSecurity security) => Results.Text(
             Resource("index.html").Replace("__SESSION_TOKEN__", security.SessionToken), "text/html; charset=utf-8"));
         app.MapGet("/app.js", () => Results.Text(Resource("app.js"), "text/javascript; charset=utf-8"));
         app.MapGet("/ui.js", () => Results.Text(Resource("ui.js"), "text/javascript; charset=utf-8"));
         app.MapGet("/forms.js", () => Results.Text(Resource("forms.js"), "text/javascript; charset=utf-8"));
         app.MapGet("/onedrive.js", () => Results.Text(Resource("onedrive.js"), "text/javascript; charset=utf-8"));
+        app.MapGet("/repository.js", () => Results.Text(Resource("repository.js"), "text/javascript; charset=utf-8"));
         app.MapGet("/preview.js", () => Results.Text(Resource("preview.js"), "text/javascript; charset=utf-8"));
         app.MapGet("/conflicts.js", () => Results.Text(Resource("conflicts.js"), "text/javascript; charset=utf-8"));
         app.MapGet("/views.js", () => Results.Text(Resource("views.js"), "text/javascript; charset=utf-8"));

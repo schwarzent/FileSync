@@ -7,10 +7,13 @@ namespace FileSync.OneDrive;
 public sealed record SnapshotHead(string SnapshotId, string Hash);
 public sealed record Snapshot(string Id, Manifest Manifest, IReadOnlyDictionary<string, string> DirectoryHashes)
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
     public int Version { get; init; } = CurrentVersion;
     public string Publisher { get; init; } = "";
     public DateTime PublishedUtc { get; init; }
+    public long Sequence { get; init; }
+    public SnapshotHead? Parent { get; init; }
+    public IReadOnlyList<Change> Changes { get; init; } = [];
 }
 
 public static class SnapshotMetadata
@@ -26,6 +29,14 @@ public static class SnapshotMetadata
     {
         if (snapshot.Version != Snapshot.CurrentVersion) throw new UserError("OneDrive 清单版本不受支持。");
         StateStore.SafeId(snapshot.Id);
+        if (snapshot.Sequence < 1 || snapshot.PublishedUtc.Kind != DateTimeKind.Utc ||
+            string.IsNullOrWhiteSpace(snapshot.Publisher) || snapshot.Changes is null)
+            throw new UserError("仓库提交的顺序、时间或设备记录无效。");
+        if (snapshot.Parent is not null)
+        {
+            StateStore.SafeId(snapshot.Parent.SnapshotId);
+            if (!ValidHash(snapshot.Parent.Hash)) throw new UserError("仓库父提交哈希无效。");
+        }
         FileScanner.Validate(snapshot.Manifest, target);
         SyncScope.Validate(snapshot.Manifest);
         if (!ValidTimes(snapshot.Manifest.RootCreatedTicks, snapshot.Manifest.RootModifiedTicks) ||
@@ -33,6 +44,7 @@ public static class SnapshotMetadata
             throw new UserError("OneDrive 清单缺少有效的原始创建或修改时间。");
         if (snapshot.Manifest.Entries.Any(e => !e.Directory && !ValidHash(e.Hash)))
             throw new UserError("OneDrive 清单文件哈希无效。");
+        RepositoryRules.ValidatePaths(snapshot.Manifest);
         var expected = DirectoryHashes(snapshot.Manifest);
         if (snapshot.DirectoryHashes is null || expected.Count != snapshot.DirectoryHashes.Count ||
             expected.Any(pair => !snapshot.DirectoryHashes.TryGetValue(pair.Key, out var hash) || hash != pair.Value))

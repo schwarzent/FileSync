@@ -23,4 +23,17 @@ public sealed partial class SyncEngine
     private Task<Manifest> ScanProfile(Profile profile, CancellationToken token, string patterns) =>
         profile.Transport == SyncTransports.OneDrive ? scanner.ScanMetadata(profile.TargetPath, token, patterns) :
             scanner.Scan(profile.TargetPath, token, patterns);
+
+    public Task<Snapshot> RecoverPublication(string profileId, CancellationToken token) => Exclusive(async () =>
+    {
+        EnsureRecovered();
+        store.Validate(store.Current);
+        var profile = store.Current.Profiles.FirstOrDefault(p => p.Id == profileId)
+            ?? throw new UserError("同步任务不存在。", 404);
+        if (profile.Transport != SyncTransports.OneDrive) throw new UserError("此任务没有 OneDrive 仓库。");
+        token.ThrowIfCancellationRequested();
+        SetPhase("writing");
+        try { return await RepositoryWorkspace.Recover(profile, scanner, CancellationToken.None); }
+        finally { SetPhase("idle"); }
+    });
 }

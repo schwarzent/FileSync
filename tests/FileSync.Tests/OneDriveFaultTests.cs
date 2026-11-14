@@ -36,7 +36,7 @@ public static class OneDriveFaultTests
             "预览失效时保留本机内容和原始时间");
         var canceled = new CancellationToken(true);
         await Check.Reject(() => context.Sender.Engine.Publish(context.SendProfile.Id,
-            new OneDrivePublisher(context.Sender.Store, new FileScanner(), new OneDriveFiles()), canceled), "OneDrive 发布支持取消");
+            new OneDrivePublisher(context.Sender.Store, new FileScanner()), canceled), "OneDrive 发布支持取消");
     }
 
     public static void Metadata(OneDriveContext context)
@@ -56,7 +56,7 @@ public static class OneDriveFaultTests
             "仅识别 Windows Cloud 占位标记，符号链接和目录联接仍被拒绝");
         Check.Reject(() => context.Sender.Store.Update(s => s with { Profiles = [context.SendProfile with { RelayPath = context.Source }] }),
             "拒绝中继与资料文件夹重叠");
-        var descriptor = PathPolicy.Resolve(context.SendProfile.RelayPath!, "current.json");
+        var descriptor = OneDriveFiles.Metadata(context.SendProfile, "current.json");
         var original = File.ReadAllBytes(descriptor);
         JsonFiles.Write(descriptor, new SnapshotHead(snapshot.Id, new string('0', 64)));
         Check.Reject(() => OneDriveFiles.ReadSnapshot(context.SendProfile), "发布记录必须匹配清单 SHA-256");

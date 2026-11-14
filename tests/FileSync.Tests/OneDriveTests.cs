@@ -71,6 +71,7 @@ public static class OneDriveTests
     {
         var scanner = new FileScanner();
         var before = await scanner.ScanMetadata(context.Target, token, context.ReceiveProfile.IgnorePatterns);
+        var sourceBefore = await scanner.ScanMetadata(context.Source, token, context.SendProfile.IgnorePatterns);
         await Check.Reject(() => context.Receiver.Engine.Preview(context.ReceiveProfile.Id, token), "未收到发布记录时明确拒绝接收");
         using var response = await context.Sender.Ui.PostAsJsonAsync($"api/profiles/{context.SendProfile.Id}/publish", new { }, token);
         var published = await response.Content.ReadFromJsonAsync<PublishResult>(token);
@@ -78,7 +79,7 @@ public static class OneDriveTests
         var snapshot = OneDriveFiles.ReadSnapshot(context.SendProfile);
         Check.True(snapshot.DirectoryHashes.Count == 3 && snapshot.Manifest.RootCreatedTicks == Created.Ticks,
             "清单记录根目录、空目录的哈希与精确创建时间");
-        var blobs = Directory.GetFiles(Path.Combine(context.SendProfile.RelayPath!, "objects"));
+        var blobs = Directory.GetFiles(OneDriveFiles.Metadata(context.SendProfile, "objects"));
         Check.True(blobs.Length == 1, "相同内容只存储一份 SHA-256 数据");
         CopyRelay(context.SendProfile, context.ReceiveProfile);
         var plan = await context.Receiver.Engine.Preview(context.ReceiveProfile.Id, token);
@@ -86,7 +87,7 @@ public static class OneDriveTests
         Check.True(revision.Status == "completed" && FileScanner.Equal(plan.Remote,
             await scanner.ScanMetadata(context.Target, token, plan.Remote.IgnorePatterns)),
             "中转时间全部改写后，文件、目录、根目录创建及修改时间仍逐 tick 一致");
-        Check.True(FileScanner.Equal(snapshot.Manifest, await scanner.ScanMetadata(context.Source, token, snapshot.Manifest.IgnorePatterns)),
+        Check.True(FileScanner.Equal(sourceBefore, await scanner.ScanMetadata(context.Source, token, context.SendProfile.IgnorePatterns)),
             "发布不改变原始资料时间");
         Check.True(FileScanner.Equal(before, await scanner.ScanMetadata(revision.BackupPath!, token, before.IgnorePatterns)),
             "接收前完整备份包含原始根目录创建和修改时间");
@@ -99,6 +100,12 @@ public static class OneDriveTests
     public static void CopyRelay(Profile source, Profile destination)
     {
         var relay = source.RelayPath!;
+        PathPolicy.Disjoint(relay, destination.RelayPath!);
+        if (Directory.Exists(destination.RelayPath))
+            Directory.Move(destination.RelayPath, destination.RelayPath + ".before-" + StateStore.NewId());
+        Directory.CreateDirectory(destination.RelayPath!);
+        foreach (var directory in Directory.EnumerateDirectories(relay, "*", SearchOption.AllDirectories))
+            Directory.CreateDirectory(PathPolicy.Resolve(destination.RelayPath!, Path.GetRelativePath(relay, directory).Replace('\\', '/')));
         foreach (var path in Directory.EnumerateFiles(relay, "*", SearchOption.AllDirectories))
         {
             var target = PathPolicy.Resolve(destination.RelayPath!, Path.GetRelativePath(relay, path).Replace('\\', '/'));

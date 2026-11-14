@@ -56,6 +56,8 @@ public sealed class StateStore
     {
         if (profile.Transport == SyncTransports.OneDrive)
         {
+            _ = new IgnoreRules(profile.UploadIgnorePatterns);
+            _ = new IgnoreRules(profile.PullIgnorePatterns);
             if (profile.Mode != SyncModes.Latest) throw new UserError("OneDrive 任务必须按原始修改时间同步。");
             var relay = PathPolicy.Root(profile.RelayPath ?? "");
             PathPolicy.Disjoint(relay, Root);
