@@ -1,4 +1,5 @@
 const paths = {
+  records: 'M5 3h10l5 5v14H5zM14 3v6h6M8 13h9M8 17h6',
   sync: 'M4 7h15l-4-4M20 17H5l4 4M20 7v5M4 17v-5',
   devices: 'M3 4h14v11H3zM7 19h6M10 15v4M20 9h3v12h-7v-3',
   history: 'M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2',

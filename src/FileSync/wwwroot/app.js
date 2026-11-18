@@ -1,9 +1,10 @@
 import { el, icon, button, showDialog, toast, date, note, bytes } from './ui.js';
 import { syncView, devicesView, historyView, settingsView, changesList, statusLabels } from './views.js';
 import { showPreview } from './preview.js';
+import { recordsView } from './records.js';
 
 const session = document.querySelector('meta[name="filesync-session"]').content;
-const pages = { sync: ['同步任务', syncView], devices: ['局域网设备', devicesView], history: ['版本记录', historyView], settings: ['设置', settingsView] };
+const pages = { sync: ['同步任务', syncView], records: ['文件记录仓库', recordsView], devices: ['局域网设备', devicesView], history: ['版本记录', historyView], settings: ['设置', settingsView] };
 const phases = { idle: '等待操作', scanning: '正在比较文件', checking: '正在检查文件变化', downloading: '正在下载文件', uploading: '正在上传文件', backup: '正在完整备份', writing: '正在应用并校验修改' };
 let state;
 let currentPage = 'sync';

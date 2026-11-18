@@ -33,6 +33,7 @@ public static class SyncTransports
 public sealed record Settings(string Name, IReadOnlyList<Share> Shares,
     IReadOnlyList<Peer> Peers, IReadOnlyList<Profile> Profiles)
 {
+    public IReadOnlyList<Records.RecordRepository> RecordRepositories { get; init; } = [];
     public static Settings Empty => new(Environment.MachineName, [], [], []);
 }
 public sealed record Entry(string Path, bool Directory, long Length, long ModifiedTicks, string? Hash)

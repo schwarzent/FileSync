@@ -29,6 +29,7 @@ public static class AppHost
         builder.Services.AddSingleton(identity);
         builder.Services.AddSingleton<FileScanner>();
         builder.Services.AddSingleton<TaskBackupService>();
+        RecordRoutes.Register(builder.Services);
         builder.Services.AddSingleton<IFolderPicker, FolderPicker>();
         builder.Services.AddSingleton<SecureTransport>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<SecureTransport>());
@@ -53,6 +54,7 @@ public static class AppHost
         PeerRoutes.Map(app);
         TransactionRoutes.Map(app);
         LocalRoutes.Map(app);
+        RecordRoutes.Map(app);
         app.Lifetime.ApplicationStopped.Register(identity.Dispose);
         app.Lifetime.ApplicationStopped.Register(instanceLock.Dispose);
         return app;

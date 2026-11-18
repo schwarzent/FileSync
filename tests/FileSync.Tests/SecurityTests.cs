@@ -33,7 +33,7 @@ public static class SecurityTests
         Check.True(peer.StatusCode == HttpStatusCode.NotFound, "管理端口不提供远端文件接口");
         var html = await node.Ui.GetStringAsync("");
         Check.True(html.Contains("文件同步") && !html.Contains("__SESSION_TOKEN__"), "中文界面及会话令牌正确加载");
-        foreach (var name in new[] { "app.js", "ui.js", "forms.js", "views.js", "preview.js", "conflicts.js", "onedrive.js", "repository.js", "backup.js", "style.css", "favicon.svg" })
+        foreach (var name in new[] { "app.js", "ui.js", "forms.js", "views.js", "preview.js", "conflicts.js", "onedrive.js", "repository.js", "backup.js", "records.js", "record-form.js", "style.css", "favicon.svg" })
         {
             using var asset = await node.Ui.GetAsync(name);
             Check.True(asset.IsSuccessStatusCode, "界面资源 " + name);

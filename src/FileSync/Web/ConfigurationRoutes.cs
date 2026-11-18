@@ -38,7 +38,8 @@ public static class ConfigurationRoutes
             engine.Exclusive(() => Task.FromResult(store.Update(s => s with
             {
                 Peers = s.Peers.Where(x => x.Id != id).ToArray(),
-                Profiles = s.Profiles.Where(x => x.PeerId != id).ToArray()
+                Profiles = s.Profiles.Where(x => x.PeerId != id).ToArray(),
+                RecordRepositories = s.RecordRepositories.Select(r => r.PeerId == id ? r with { PeerId = null } : r).ToArray()
             }))));
     }
 

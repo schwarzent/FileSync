@@ -25,6 +25,7 @@ await SyncResourceTests.Run(new(first, second, root), deadline.Token);
 await OneDriveTests.Run(new(first, second, root), deadline.Token);
 await RepositoryTests.Run(new(first, second, root), deadline.Token);
 await TaskBackupTests.Run(new(first, second, root), deadline.Token);
+await RecordTests.Run(new(first, second, root), deadline.Token);
 second.Store.Update(s => s with { Peers = [] });
 using var connection = first.Client.Connect(first.Store.Current.Peers.Single());
 using var revoked = await connection.GetAsync("peer/shares", deadline.Token);

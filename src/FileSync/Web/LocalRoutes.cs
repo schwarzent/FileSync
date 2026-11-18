@@ -56,7 +56,7 @@ public static class LocalRoutes
         app.MapGet("/favicon.svg", () => Results.Text(Resource("favicon.svg"), "image/svg+xml"));
     }
 
-    private static string Resource(string name)
+    internal static string Resource(string name)
     {
         using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"FileSync.wwwroot.{name}")
             ?? throw new InvalidOperationException($"界面资源缺失：{name}");

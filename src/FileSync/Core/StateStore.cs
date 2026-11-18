@@ -33,6 +33,8 @@ public sealed class StateStore
     {
         if (string.IsNullOrWhiteSpace(value.Name) || value.Name.Length > 80)
             throw new UserError("设备名称需要 1–80 个字符。");
+        if (value.RecordRepositories is null) throw new UserError("文件记录仓库配置为空。");
+        foreach (var repository in value.RecordRepositories) Records.RecordValidation.Configuration(repository, value, Root);
         foreach (var share in value.Shares) _ = new IgnoreRules(share.IgnorePatterns);
         var roots = value.Shares.Select(s => PathPolicy.Root(s.Path))
             .Concat(value.Profiles.Select(p => PathPolicy.Root(p.TargetPath))).ToArray();
