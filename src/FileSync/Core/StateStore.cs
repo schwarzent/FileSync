@@ -37,7 +37,8 @@ public sealed class StateStore
         foreach (var repository in value.RecordRepositories) Records.RecordValidation.Configuration(repository, value, Root);
         foreach (var share in value.Shares) _ = new IgnoreRules(share.IgnorePatterns);
         var roots = value.Shares.Select(s => PathPolicy.Root(s.Path))
-            .Concat(value.Profiles.Select(p => PathPolicy.Root(p.TargetPath))).ToArray();
+            .Concat(value.Profiles.Select(p => PathPolicy.Root(p.TargetPath)))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         foreach (var root in roots) PathPolicy.Disjoint(root, Root);
         for (var i = 0; i < roots.Length; i++)
             for (var j = i + 1; j < roots.Length; j++) PathPolicy.Disjoint(roots[i], roots[j]);
