@@ -63,7 +63,7 @@ public sealed partial class SyncEngine
     private async Task CheckDesired(SyncPlan plan, CancellationToken token)
     {
         if (!FileScanner.Equal(await ScanLocal(plan, token), plan.Desired) ||
-            !FileScanner.Equal(await remote.Manifest(plan.Profile, token), plan.Desired))
+            !FileScanner.Equal(await remote.Manifest(plan.Profile, token), plan.RemoteDesired ?? plan.Desired))
             throw new UserError("双向同步后校验失败，请从版本记录恢复。", 409);
     }
 

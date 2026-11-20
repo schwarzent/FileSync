@@ -2,7 +2,7 @@ import { el, button, field, input, select, showDialog, note, toast } from './ui.
 import { folderInput, ignoreInput, confirmAction } from './forms.js';
 
 export function recordForm(context) {
-  const name = input('', { required: true, maxLength: 80, placeholder: '例如 工作资料记录' });
+  const name = input('', { required: true, maxLength: 80, placeholder: '例如 工作资料' });
   const workspace = folderInput('', context);
   const folder = folderInput('', context);
   folder.node.required = false;
@@ -22,17 +22,17 @@ export function recordForm(context) {
     if (repositories.length) remote.value = repositories[0].repositoryId;
     remote.disabled = false;
   }));
-  const dialog = showDialog('新建文件记录仓库', [
-    note('只保存文件清单和修改记录，不复制资料。另一台电脑可通过局域网加入，或选择对应的同一个 OneDrive 记录文件夹。'),
-    field('仓库名称', name), field('本机资料文件夹', workspace.row), field('连接方式', peer), remoteField,
-    field('记录文件夹（可选）', folder.row, '留空时只保存在本机程序数据目录。跨电脑使用 OneDrive 时，选择对应的同一云端文件夹，与资料文件夹分开。'), ignored.field
-  ], [button('保存仓库', context.act(async () => {
+  const dialog = showDialog('添加资料文件夹', [
+    note('只保存清单与方案，资料保留在原电脑。两端选择同一个 OneDrive 记录文件夹，或通过局域网加入同一仓库。'),
+    field('名称', name), field('本机资料文件夹', workspace.row), field('加入方式', peer), remoteField,
+    field('清单与方案保存位置（可选）', folder.row, '选 OneDrive 子文件夹可跨电脑交换；留空则保存在本机程序数据目录。此处只写入记录，不上传资料。'), ignored.field
+  ], [button('添加文件夹', context.act(async () => {
     if (!name.reportValidity() || !workspace.node.reportValidity()) return;
     if (remote.disabled) throw new Error('请等待远端仓库列表读取完成。');
     await context.api('/record-repositories', { name: name.value, workspacePath: workspace.node.value,
       repositoryId: remote.value || null, repositoryPath: folder.node.value || null,
       peerId: peer.value || null, ignorePatterns: ignored.node.value });
-    dialog.close(); await context.refresh(); toast('记录仓库已保存，可独立生成本机记录。');
+    dialog.close(); await context.refresh(); toast('已添加。点击“扫描并更新清单”记录本机文件。');
   }), { class: 'primary' })]);
 }
 
@@ -40,8 +40,8 @@ export function exchangeRecords(context, repository) {
   const peers = context.getState().settings.peers;
   if (!peers.length) throw new Error('请先在局域网设备页面配对另一台电脑。');
   const peer = select(peers.map(p => ({ value: p.id, label: p.name })), repository.peerId);
-  const dialog = showDialog('交换局域网记录', [note('两端需先加入同一记录仓库并各自生成本机记录。此操作只交换清单，不传输资料。'),
-    field('已配对设备', peer)], [button('交换记录', context.act(async () => {
+  const dialog = showDialog('局域网交换清单', [note('两端先加入同一仓库，并各自扫描生成清单。此处只交换已保存清单，不扫描资料、不传输文件内容。'),
+    field('已配对设备', peer)], [button('交换清单', context.act(async () => {
     const result = await context.api(`/record-repositories/${repository.id}/exchange`, { peerId: peer.value });
     dialog.close(); await context.refresh(); toast(result.message);
   }), { class: 'primary' })]);

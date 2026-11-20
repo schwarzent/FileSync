@@ -35,7 +35,7 @@ public sealed class SecureTransport(DeviceIdentity identity, StateStore store, A
         process.ErrorDataReceived += (_, e) => { if (e.Data is not null) logger.LogError("TLS：{Message}", e.Data); };
         process.BeginErrorReadLine();
         using var key = identity.Certificate.GetECDsaPrivateKey()!;
-        var config = new { Backend = $"127.0.0.1:{options.UiPort}", Port = options.PeerPort, Token,
+        var config = new { Backend = $"127.0.0.1:{options.UiPort}", Port = options.PeerPort, options.LoopbackOnly, Token,
             Certificate = identity.Certificate.ExportCertificatePem(), Key = key.ExportPkcs8PrivateKeyPem() };
         await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(config));
         await process.StandardInput.FlushAsync(cancellationToken);

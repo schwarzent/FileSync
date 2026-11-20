@@ -4,10 +4,10 @@ import { showPreview } from './preview.js';
 import { recordsView } from './records.js';
 
 const session = document.querySelector('meta[name="filesync-session"]').content;
-const pages = { sync: ['同步任务', syncView], records: ['文件记录仓库', recordsView], devices: ['局域网设备', devicesView], history: ['版本记录', historyView], settings: ['设置', settingsView] };
+const pages = { records: ['清单与方案', recordsView], sync: ['整目录同步', syncView], devices: ['局域网设备', devicesView], history: ['版本记录', historyView], settings: ['设置', settingsView] };
 const phases = { idle: '等待操作', scanning: '正在比较文件', checking: '正在检查文件变化', downloading: '正在下载文件', uploading: '正在上传文件', backup: '正在完整备份', writing: '正在应用并校验修改' };
 let state;
-let currentPage = 'sync';
+let currentPage = 'records';
 let timer;
 let disposed = false;
 let refreshing;
@@ -38,7 +38,7 @@ function act(action) {
 
 function render() {
   const page = location.hash.slice(1);
-  currentPage = pages[page] ? page : 'sync';
+  currentPage = pages[page] ? page : 'records';
   document.title = `${pages[currentPage][0]} · FileSync`;
   document.querySelector('#page-name').textContent = pages[currentPage][0];
   document.querySelector('#navigation').replaceChildren(...Object.entries(pages).map(([key, [label]]) =>
@@ -104,7 +104,7 @@ async function publish(id) {
   schedule();
   try {
     const result = await api(`/profiles/${id}/publish`, {});
-    showDialog('已提交 OneDrive 中继', [note(result.message),
+    showDialog('资料已写入本机 OneDrive 文件夹', [note(result.message),
       el('p', {}, `提交 #${result.sequence} · ${result.changedFiles} 个文件变化；仓库共 ${result.files} 个文件、${result.directories} 个文件夹。原始时间和哈希已记录。`)],
     [button('关闭', () => document.querySelector('#modal').close())]);
   } finally { localOperation = false; await refresh(); }

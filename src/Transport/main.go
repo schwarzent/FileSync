@@ -14,11 +14,12 @@ import (
 )
 
 type configuration struct {
-	Backend     string
-	Port        int
-	Token       string
-	Certificate string
-	Key         string
+	Backend      string
+	Port         int
+	LoopbackOnly bool
+	Token        string
+	Certificate  string
+	Key          string
 }
 
 func main() {
@@ -49,7 +50,7 @@ func run() error {
 		return err
 	}
 	defer local.Close()
-	secure, err := tls.Listen("tcp4", fmt.Sprintf("0.0.0.0:%d", config.Port), &tls.Config{
+	secure, err := tls.Listen("tcp4", fmt.Sprintf("%s:%d", listenHost(config), config.Port), &tls.Config{
 		Certificates: []tls.Certificate{certificate}, MinVersion: tls.VersionTLS12,
 		ClientAuth: tls.RequireAnyClientCert, VerifyConnection: validClient,
 	})
@@ -69,6 +70,13 @@ func run() error {
 	go func() { _, _ = io.Copy(io.Discard, reader); finished <- nil }()
 	fmt.Println(local.Addr().(*net.TCPAddr).Port)
 	return <-finished
+}
+
+func listenHost(config configuration) string {
+	if config.LoopbackOnly {
+		return "127.0.0.1"
+	}
+	return "0.0.0.0"
 }
 
 func proxyError(writer http.ResponseWriter, _ *http.Request, err error) {

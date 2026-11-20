@@ -30,7 +30,7 @@ export async function oneDriveForm(context, existing) {
     await context.refresh();
   });
   showDialog(existing ? '编辑 OneDrive 任务' : '新建 OneDrive 任务', [
-    note('两台电脑连接同一个 OneDrive 仓库。资料保留原文件名和目录；.filesync-repo 保存明文提交历史和历史内容，不加密文件。'),
+    note('此任务会把实际资料及历史内容写入 OneDrive。只交换轻量清单时，请使用“清单与方案”。'),
     field('任务名称', name), field('本机资料文件夹', target.row, '创建时间和修改时间将记录到中继清单，并在接收时恢复、校验。'),
     accounts.length ? field('检测到的本机 OneDrive', account) : note('未检测到 OneDrive 路径，请确认客户端已登录并手动填写中继文件夹。'),
     field('OneDrive 中继文件夹', relay.row, '选择 OneDrive 内独立的子文件夹，与本机资料文件夹分开；两端路径可以不同，但必须对应同一个云端文件夹。'),
@@ -53,8 +53,8 @@ export function oneDriveRow(profile, context) {
       el('strong', {}, '↔'), el('div', {}, [el('small', {}, 'OneDrive 中继'), el('div', { class: 'path' }, profile.relayPath)])]),
     el('div', { class: 'profile-bottom' }, [el('small', {}, '原始修改时间优先 · 创建与修改时间校验'),
       el('div', { class: 'profile-actions' }, [
-        button('仓库历史', context.act(() => repositoryHistory(context, profile)), { icon: 'history', disabled: busy }),
-        button('发布到 OneDrive', context.act(() => context.publish(profile.id)), { icon: 'plus', disabled: busy }),
-        button('预览接收', context.act(() => context.preview(profile.id)), { icon: 'sync', class: 'primary', disabled: busy })])])
+        button('文件中继历史', context.act(() => repositoryHistory(context, profile)), { icon: 'history', disabled: busy }),
+        button('将资料写入 OneDrive', context.act(() => context.publish(profile.id)), { icon: 'plus', disabled: busy }),
+        button('预览接收资料', context.act(() => context.preview(profile.id)), { icon: 'sync', class: 'primary', disabled: busy })])])
   ]);
 }

@@ -38,14 +38,15 @@ public sealed class TransactionFiles(StateStore store)
     public void Install(SyncPlan plan)
     {
         var target = plan.Profile.TargetPath;
-        foreach (var entry in plan.Desired.Entries.Where(e => e.Directory).OrderBy(e => e.Path.Length))
+        var times = SelectedFileTimes.Scope(plan, plan.Desired);
+        foreach (var entry in times.Entries.Where(e => e.Directory).OrderBy(e => e.Path.Length))
             Directory.CreateDirectory(PathPolicy.Resolve(target, entry.Path));
         foreach (var change in plan.Changes.Where(c => c.After is { Directory: false } && c.Kind != "metadata"))
         {
             var destination = PathPolicy.Resolve(target, change.After!.Path);
             File.Move(Stage(plan, change.After), destination);
         }
-        RestoreTimes(target, plan.Desired);
+        RestoreTimes(target, times);
     }
 
     public void Rollback(SyncPlan plan)
@@ -68,7 +69,7 @@ public sealed class TransactionFiles(StateStore store)
             if (OriginalPresent(destination, change.Before)) continue;
             Move(archive, destination, change.Before.Directory);
         }
-        RestoreTimes(plan.Profile.TargetPath, plan.Local);
+        RestoreTimes(plan.Profile.TargetPath, SelectedFileTimes.Scope(plan, plan.Local));
     }
 
     private static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);

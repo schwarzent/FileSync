@@ -23,17 +23,17 @@ function profileRow(profile, context) {
       profile.mode === 'two-way' ? el('strong', { title: '双向同步' }, '↔') : icon('arrow'),
       el('div', {}, [el('small', {}, '本机目标文件夹'), el('strong', {}, state.settings.name), el('div', { class: 'path' }, profile.targetPath)])]),
     el('div', { class: 'profile-bottom' }, [el('small', {}, `${profile.mode === 'two-way' ? '双向同步' : '单向同步'} · ${profile.backupPath ? '完整备份已启用' : '版本记录已启用'}`),
-      button('预览同步', context.act(() => context.preview(profile.id)), { icon: 'sync', class: 'primary', disabled: state.busy })])]);
+      button('比较整目录', context.act(() => context.preview(profile.id)), { icon: 'sync', class: 'primary', disabled: state.busy })])]);
 }
 
 function sourceList(context) {
   const shares = context.getState().settings.shares;
-  return card('本机源文件夹', shares.length ? el('div', {}, shares.map(share => el('div', { class: 'source-row' }, [icon('folder'),
+  return card('本机共享文件夹', shares.length ? el('div', {}, shares.map(share => el('div', { class: 'source-row' }, [icon('folder'),
     el('div', {}, [el('h3', {}, share.name), el('div', { class: 'path' }, share.path), el('small', {}, share.allowWrite ? '允许双向写入' : '只读共享')]),
     button('', () => shareForm(context, share), { icon: 'edit', class: 'icon-button', title: '编辑共享' }),
-    button('', () => confirmAction('取消发布文件夹', '配对设备将无法继续读取此源文件夹，本机文件保留。', () => context.api(`/shares/${share.id}`, null, 'DELETE'), context), { icon: 'close', class: 'icon-button', title: '取消发布' })]))) :
-    el('div', { class: 'source-empty' }, '发布一个本机文件夹，供配对设备手动同步。'),
-  button('', () => shareForm(context), { icon: 'plus', class: 'icon-button', title: '发布源文件夹' }));
+    button('', () => confirmAction('停止共享文件夹', '配对设备将无法继续读取或写入此文件夹，本机文件保留。', () => context.api(`/shares/${share.id}`, null, 'DELETE'), context), { icon: 'close', class: 'icon-button', title: '停止共享' })]))) :
+    el('div', { class: 'source-empty' }, '共享文件夹后，配对设备可读取资料。启用写入后可执行方案。'),
+  button('', () => shareForm(context), { icon: 'plus', class: 'icon-button', title: '共享本机文件夹' }));
 }
 
 function localCard(context) {
@@ -48,14 +48,14 @@ export function syncView(context) {
   const state = context.getState();
   const profiles = state.settings.profiles;
   const latest = context.history.find(r => r.status === 'completed');
-  return [heading('文件同步', '连接你的设备，让每一份文件保持最新。', button('新建同步任务', context.act(() => profileForm(context)), { class: 'primary', icon: 'plus' })),
+  return [heading('整目录同步', '按任务比较整个目录。仅选定文件时，请使用“清单与方案”。', button('新建整目录任务', context.act(() => profileForm(context)), { class: 'primary', icon: 'plus' })),
     el('div', { class: 'stats' }, [stat('已配对设备', String(state.settings.peers.length).padStart(2, '0'), 'devices', '台设备'),
       stat('同步任务', String(profiles.length).padStart(2, '0'), 'folder', '个任务'), stat('最近一次同步', latest ? date(latest.createdUtc) : '尚未同步', 'clock')]),
     el('div', { class: 'dashboard-grid' }, [el('div', { class: 'stack' }, [card('我的同步任务', el('div', {}, [profiles.length ? el('div', {}, profiles.map(p => profileRow(p, context))) :
-      empty('从一个文件夹开始', '通过局域网或已登录的 OneDrive 同步。每次接收前可以预览文件变化。', button('创建第一个任务', context.act(() => profileForm(context)), { icon: 'plus', class: 'primary' })),
+      empty('尚无整目录任务', '局域网直接传输；OneDrive 中继会保存实际资料及历史内容。', button('新建整目录任务', context.act(() => profileForm(context)), { icon: 'plus', class: 'primary' })),
       el('div', { class: 'hint-strip' }, [icon('clock'), '手动同步 · 仅在你点击执行时更改文件'])]), el('span', { class: 'count' }, `${profiles.length} 个任务`)),
     el('div', { class: 'bottom-note' }, [icon('history'), '每次修改都有记录，被覆盖和删除的文件可从版本记录中恢复。'])]),
-    el('div', { class: 'stack' }, [localCard(context), sourceList(context), el('section', { class: 'card security-card' }, [el('h3', {}, [icon('shield'), '安全地连接，安心地同步']),
+    el('div', { class: 'stack' }, [localCard(context), sourceList(context), el('section', { class: 'card security-card' }, [el('h3', {}, [icon('shield'), '连接与文件校验']),
       el('p', {}, '局域网通过配对证书验证设备身份；OneDrive 使用本机已登录的客户端中继，并核对内容与原始时间。')])])])];
 }
 
@@ -86,10 +86,10 @@ export function historyView(context) {
     el('div', { class: 'revision-actions' }, [el('span', { class: `pill ${revision.status}` }, statusLabels[revision.status] || revision.status),
       button('详情', () => context.revisionDetails(revision), { class: 'text' }),
       revision.status === 'completed' ? button('撤销', () => confirmAction('撤销这次同步', '恢复同步前的文件和目录时间。双向任务会同时恢复两端；后续文件修改会阻止撤销。', () => context.api(`/history/${revision.id}/undo`, {}), context), { class: 'text', icon: 'history' }) : null,
-      ['staging', 'writing', 'recovery-needed', 'reverting'].includes(revision.status) ? button('恢复', () => confirmAction('恢复中断的同步', '将目标文件夹恢复至本次同步前的状态。', () => context.api(`/history/${revision.id}/recover`, {}), context), { class: 'danger' }) : null]) ]));
+      ['staging', 'writing', 'recovery-needed', 'reverting'].includes(revision.status) ? button('恢复同步前状态', () => confirmAction('恢复中断的同步', '还原本次同步前状态。双向任务和方案需要两台设备在线。', () => context.api(`/history/${revision.id}/recover`, {}), context), { class: 'danger' }) : null]) ]));
   return [heading('版本记录', '查看每次同步的变化，恢复需要保留的文件。', button('刷新', context.act(context.refresh), { icon: 'refresh' })),
     el('section', { class: 'card' }, [el('div', { class: 'card-heading' }, [el('h2', {}, '同步历史'), el('span', { class: 'count' }, `${rows.length} 条记录`)]),
-      rows.length ? el('div', {}, rows) : empty('每次变化，都有迹可循', '完成第一次同步后，文件变化与恢复记录将显示在这里。', null, 'history')]),
+      rows.length ? el('div', {}, rows) : empty('尚无同步记录', '执行方案或整目录同步后，在此查看修改并撤销。', null, 'history')]),
     el('div', { class: 'section-gap' }, note('可逐次撤销同一任务的同步。版本内容与可选完整备份均保留在磁盘，不会自动清理。', 'backup'))];
 }
 

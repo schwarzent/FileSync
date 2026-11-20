@@ -29,9 +29,9 @@ export function shareForm(context, existing) {
     toast('共享设置已保存。');
     await context.refresh();
   });
-  showDialog(existing ? '编辑共享文件夹' : '发布本机源文件夹', [note('已配对的设备可读取此文件夹。允许双向写入后，配对设备可手动同步修改和删除。'),
+  showDialog(existing ? '编辑共享文件夹' : '共享本机文件夹', [note('共享后，已配对设备可以读取资料。允许写入后，也可执行方案中的修改和删除。'),
     field('名称', name), field('源文件夹', path.row), ignored.field,
-    el('label', { class: 'checkbox-row' }, [allowWrite, '允许配对设备双向写入'])],
+    el('label', { class: 'checkbox-row' }, [allowWrite, '允许配对设备写入（含修改和删除）'])],
     [button('保存共享', save, { class: 'primary', icon: 'check' })]);
 }
 
@@ -63,9 +63,9 @@ async function profileFields(context, existing) {
 export function profileForm(context, existing) {
   if (existing?.transport === 'onedrive') return oneDriveForm(context, existing);
   if (existing) return lanProfileForm(context, existing);
-  showDialog('新建同步任务', [note('选择本次任务使用的传输方式。')], [
-    button('OneDrive 远程同步', context.act(() => oneDriveForm(context)), { class: 'primary', icon: 'sync' }),
-    button('局域网同步', context.act(() => lanProfileForm(context)), { icon: 'devices' })
+  showDialog('新建整目录任务', [note('此处传输实际文件。只交换清单并逐项计划，请到“清单与方案”。')], [
+    button('OneDrive 文件中继', context.act(() => oneDriveForm(context)), { icon: 'sync' }),
+    button('局域网整目录同步', context.act(() => lanProfileForm(context)), { class: 'primary', icon: 'devices' })
   ]);
 }
 
@@ -76,7 +76,7 @@ async function lanProfileForm(context, existing) {
     if (!name.reportValidity() || !target.node.reportValidity()) return;
     if (!share.value || share.disabled) throw new Error('请先在远端发布源文件夹，再选择它。');
     if (mode.value === 'two-way' && share.selectedOptions[0].dataset.writable !== 'true')
-      throw new Error('请先在远端共享设置中启用“允许配对设备双向写入”。');
+      throw new Error('请先在远端共享设置中允许配对设备写入。');
     if (enabled.checked && !backup.node.value.trim()) throw new Error('请选择完整备份位置。');
     await context.api('/profiles', { id: existing?.id, name: name.value, peerId: peer.value, shareId: share.value,
       targetPath: target.node.value, backupPath: enabled.checked ? backup.node.value : null,
@@ -86,7 +86,7 @@ async function lanProfileForm(context, existing) {
     toast('同步任务已保存。');
     await context.refresh();
   });
-  showDialog(existing ? '编辑同步任务' : '新建同步任务', [note('单向使本机与远端一致；双向首次合并独有文件，后续传播两边的修改和删除。同一文件两边都改动时需先处理冲突。'),
+  showDialog(existing ? '编辑局域网整目录任务' : '新建局域网整目录任务', [note('单向会使本机与远端一致，移走本机独有文件。双向会传播两端修改和删除；内容冲突时需选择保留版本。'),
     field('任务名称', name), field('同步方向', mode), field('远端设备', peer), field('远端源文件夹', share), field('本机目标文件夹', target.row),
     ignored.field,
     el('label', { class: 'checkbox-row' }, [enabled, '启用同步前完整备份']), backupField,
@@ -122,7 +122,7 @@ export function pairingForm(context) {
 }
 
 export function confirmAction(title, message, action, context) {
-  const dialog = showDialog(title, [note(message)], [button('确认', context.act(async () => {
+  const dialog = showDialog(title, [note(message)], [button(title, context.act(async () => {
     await action(); dialog.close(); await context.refresh();
   }), { class: 'danger' })]);
 }

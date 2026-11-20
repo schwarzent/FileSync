@@ -47,7 +47,7 @@ public sealed partial class PeerClient(StateStore store, SecureTransport transpo
     {
         using var client = Connect(Find(profile.PeerId));
         using var response = await client.PostAsJsonAsync($"peer/manifest/{StateStore.SafeId(profile.ShareId)}",
-            new ManifestRequest(profile.IgnorePatterns), token);
+            new ManifestRequest(profile.IgnorePatterns) { CreationTime = profile.PreserveCreationTime }, token);
         await Check(response, token);
         return await response.Content.ReadFromJsonAsync<Manifest>(token) ?? throw new UserError("远端清单为空。");
     }
@@ -84,4 +84,7 @@ public sealed partial class PeerClient(StateStore store, SecureTransport transpo
     }
 }
 
-public sealed record ManifestRequest(string IgnorePatterns);
+public sealed record ManifestRequest(string IgnorePatterns)
+{
+    public bool CreationTime { get; init; }
+}

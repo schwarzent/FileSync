@@ -60,10 +60,12 @@ public sealed partial class SyncEngine(StateStore store, FileScanner scanner, IR
         var plan = ReadPlan(planId);
         if (plan.Conflicts.Count > 0) throw new UserError("请先为所有冲突选择保留本机或远端。", 409);
         store.Validate(store.Current);
-        if (!store.Current.Profiles.Contains(plan.Profile)) throw new UserError("任务配置已变更，请重新预览。", 409);
+        if (plan.RecordPlanId is not null) ValidateSelectionConfiguration(plan);
+        else if (!store.Current.Profiles.Contains(plan.Profile)) throw new UserError("任务配置已变更，请重新预览。", 409);
+        SelectedFileTimes.Validate(plan);
         if (File.Exists(store.RevisionPath(plan.Id))) throw new UserError("此预览已经执行，请重新预览。", 409);
         var revision = new Revision(plan.Id, plan.Profile.Id, plan.Profile.Name, "staging", DateTime.UtcNow, plan.Changes)
-            { Mode = plan.Profile.Mode, RemoteChanges = plan.RemoteChanges };
+            { Mode = plan.Profile.Mode, RemoteChanges = plan.RemoteChanges, RecordPlanId = plan.RecordPlanId };
         Directory.CreateDirectory(store.VaultPath(plan.Id));
         JsonFiles.Write(Path.Combine(store.VaultPath(plan.Id), "plan.json"), plan);
         Save(revision);

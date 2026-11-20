@@ -24,6 +24,8 @@ switch (suite)
         await IgnoreTests.Run(new(first, second, root), deadline.Token);
         await ConflictTests.Run(new(first, second, root), deadline.Token);
         await FaultTests.Run(root, deadline.Token);
+        break;
+    case "cloud-records":
         await OneDriveTests.Run(new(first, second, root), deadline.Token);
         await RepositoryTests.Run(new(first, second, root), deadline.Token);
         await TaskBackupTests.Run(new(first, second, root), deadline.Token);
@@ -35,6 +37,9 @@ switch (suite)
         break;
     case "coexistence":
         await TransportCoexistenceTests.Run(new(first, second, root), deadline.Token);
+        break;
+    case "record-plans":
+        await RecordPlanTests.Run(new(first, second, root), deadline.Token);
         break;
     default: throw new ArgumentException($"未知测试组：{suite}");
 }

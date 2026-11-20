@@ -16,10 +16,11 @@ export function showPreview(context, plan, execute) {
   if (twoWay) changes.unshift(el('h3', {}, '本机修改'));
   if (twoWay) changes.push(el('h3', {}, '远端修改'),
     plan.remoteChanges.length ? changesList(plan.remoteChanges) : el('p', {}, '远端文件内容一致。'));
-  const dialog = showDialog('同步预览', [
-    note(`${plan.profile.name}：${oneDrive ? '接收 OneDrive 清单中较新的版本，保留本机较新文件和独有文件，恢复并校验创建与修改时间。' : twoWay ? '将合并两端内容，以下分别列出本机与远端修改。' : '本机目标将与远端一致，忽略项保留。'}`),
+  const selected = Boolean(plan.recordPlanId);
+  const dialog = showDialog(selected ? '方案执行前检查' : '整目录同步预览', [
+    note(`${plan.profile.name}：${selected ? '只执行已保存方案中列出的路径，其余文件保留。以下是本次实际修改。' : oneDrive ? '接收 OneDrive 清单中较新的版本，保留本机较新文件和独有文件，恢复并校验创建与修改时间。' : twoWay ? '将合并两端内容，以下分别列出本机与远端修改。' : '本机目标将与远端一致，忽略项保留。'}`),
     summary, el('p', { class: 'path' }, plan.profile.targetPath), ...changes
-  ], [button('返回', () => dialog.close()), button('执行同步', context.act(async () => {
+  ], [button('返回', () => dialog.close()), button(selected ? '执行本方案' : '执行整目录同步', context.act(async () => {
     dialog.close();
     await execute(plan);
   }), { class: 'primary', icon: 'sync' })]);

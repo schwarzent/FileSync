@@ -11,11 +11,11 @@ export function taskBackupCard(context) {
       showImport(context, backup, preview);
     } finally { file.value = ''; }
   }));
-  return el('section', { class: 'card form-card' }, [el('h2', {}, '同步任务配置备份'),
-    el('p', { class: 'section-gap' }, '将所有同步任务导出为一个 JSON 文件，导入后恢复路径、同步方式、过滤规则和备份设置。'),
+  return el('section', { class: 'card form-card' }, [el('h2', {}, '整目录任务配置备份'),
+    el('p', { class: 'section-gap' }, '备份整目录任务的路径、同步方式、过滤规则和备份设置。清单、方案和资料文件不包含在内。'),
     el('div', { class: 'section-gap profile-actions' }, [
-      button('导出所有任务', context.act(() => exportTasks(context)), { icon: 'download', disabled: context.getState().busy }),
-      button('导入配置文件', () => file.click(), { icon: 'plus', disabled: context.getState().busy })
+      button('导出整目录任务', context.act(() => exportTasks(context)), { icon: 'download', disabled: context.getState().busy }),
+      button('导入整目录任务', () => file.click(), { icon: 'plus', disabled: context.getState().busy })
     ]), file,
     el('small', {}, '导入按任务编号更新，其他已有任务保留。路径按原值恢复；局域网任务需已与原设备配对。')
   ]);

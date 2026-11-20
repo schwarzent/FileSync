@@ -35,7 +35,9 @@ public static class PeerRoutes
             ?? throw new UserError("请提供任务忽略规则。");
         var share = FindShare(store, id);
         _ = new IgnoreRules(request.IgnorePatterns);
-        return await scanner.Scan(share.Path, context.RequestAborted, IgnoreRules.Combine(share.IgnorePatterns, request.IgnorePatterns));
+        var patterns = IgnoreRules.Combine(share.IgnorePatterns, request.IgnorePatterns);
+        return request.CreationTime ? await scanner.ScanMetadata(share.Path, context.RequestAborted, patterns) :
+            await scanner.Scan(share.Path, context.RequestAborted, patterns);
     }
 
     private static async Task<IResult> ServeFile([AsParameters] FileRequest request, StateStore store, CancellationToken token)

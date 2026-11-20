@@ -21,7 +21,7 @@ public sealed partial class SyncEngine
         });
 
     private Task<Manifest> ScanProfile(Profile profile, CancellationToken token, string patterns) =>
-        profile.Transport == SyncTransports.OneDrive ? scanner.ScanMetadata(profile.TargetPath, token, patterns) :
+        profile.Transport == SyncTransports.OneDrive || profile.PreserveCreationTime ? scanner.ScanMetadata(profile.TargetPath, token, patterns) :
             scanner.Scan(profile.TargetPath, token, patterns);
 
     public Task<Snapshot> RecoverPublication(string profileId, CancellationToken token) => Exclusive(async () =>

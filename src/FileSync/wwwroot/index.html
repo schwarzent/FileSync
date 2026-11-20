@@ -12,16 +12,16 @@
 </head>
 <body>
   <aside class="sidebar">
-    <a class="brand" href="#sync"><img src="/favicon.svg" alt=""><span>FileSync<small>让文件，保持同步。</small></span></a>
+    <a class="brand" href="#records"><img src="/favicon.svg" alt=""><span>FileSync<small>比较清单，按方案同步</small></span></a>
     <div class="nav-label">工作空间</div>
     <nav aria-label="主导航" id="navigation"></nav>
-    <div class="sidebar-bottom"><span class="status-dot"></span>局域网 · OneDrive<span class="version">v0.2</span></div>
+    <div class="sidebar-bottom"><span class="status-dot"></span>局域网 · OneDrive<span class="version">v0.3</span></div>
   </aside>
   <main>
-    <header class="topbar"><span class="breadcrumb">工作空间 <span>/</span> <b id="page-name">同步任务</b></span><span class="local-badge"><span class="status-dot"></span>本机管理</span></header>
+    <header class="topbar"><span class="breadcrumb">工作空间 <span>/</span> <b id="page-name">清单与方案</b></span><span class="local-badge"><span class="status-dot"></span>本机管理</span></header>
     <div id="content" class="content" aria-live="polite"><p class="loading">正在连接本机服务…</p></div>
     <div id="progress" class="progress-panel" hidden aria-live="polite"></div>
-    <footer>FileSync <span>文件由你掌控，同步由你决定。</span><span class="footer-right">Windows · 局域网 / OneDrive</span></footer>
+    <footer>FileSync <span>扫描只生成清单，执行才修改资料。</span><span class="footer-right">Windows · 局域网 / OneDrive</span></footer>
   </main>
   <dialog id="modal" aria-labelledby="modal-title"></dialog>
   <div id="toast" role="status" hidden></div>

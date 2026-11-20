@@ -24,7 +24,7 @@ public sealed class TestNode : IAsyncDisposable
 
     public TestNode(string root)
     {
-        Options = new(root, FreePort(), FreePort(), false, false);
+        Options = new(root, FreePort(), FreePort(), false, false) { LoopbackOnly = true };
         App = AppHost.Build(Options);
         Ui = new() { BaseAddress = new Uri($"http://127.0.0.1:{Options.UiPort}/"), Timeout = TimeSpan.FromSeconds(10) };
         Ui.DefaultRequestHeaders.Add("X-FileSync-Session", App.Services.GetRequiredService<RequestSecurity>().SessionToken);

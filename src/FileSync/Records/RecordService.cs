@@ -51,6 +51,36 @@ public sealed class RecordService(RecordStore records, RecordEnvironment environ
     public RecordRepository FindShared(string id) => state.Current.RecordRepositories.FirstOrDefault(r => r.RepositoryId == id)
         ?? throw new UserError("本机尚未加入此记录仓库。", 404);
 
+    public string ValidationRoot => records.ValidationRoot;
+
+    public WorkspaceRecord Snapshot(RecordRepository repository, RecordPlanSide side)
+    {
+        var record = records.ReadEnvelope(repository, side.Reference).Record;
+        if (RecordJson.Describe(record) != side.Device) throw new UserError("方案引用的设备清单不一致。", 409);
+        return record;
+    }
+
+    public RecordShareConnection Connection(string repositoryId)
+    {
+        var repository = FindShared(repositoryId);
+        var share = state.Current.Shares.FirstOrDefault(s => s.AllowWrite &&
+            string.Equals(s.Path, repository.WorkspacePath, StringComparison.OrdinalIgnoreCase))
+            ?? throw new UserError("请在对方的文件清单页面点击“允许局域网执行”，再执行方案。", 403);
+        return new(identity.Id, share.Id);
+    }
+
+    public Share EnableLan(string id)
+    {
+        var repository = Find(id);
+        var share = state.Current.Shares.FirstOrDefault(s =>
+            string.Equals(s.Path, repository.WorkspacePath, StringComparison.OrdinalIgnoreCase));
+        share = share is null ? new(StateStore.NewId(), repository.Name, repository.WorkspacePath)
+            { AllowWrite = true, IgnorePatterns = repository.IgnorePatterns } : share with { AllowWrite = true };
+        var updated = share;
+        state.Update(s => s with { Shares = s.Shares.Where(item => item.Id != updated.Id).Append(updated).ToArray() });
+        return share;
+    }
+
     public async Task<RecordDevice> Generate(string id, CancellationToken token)
     {
         var repository = Find(id);

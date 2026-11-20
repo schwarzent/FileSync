@@ -12,10 +12,12 @@ public static class RecordRoutes
         services.AddSingleton<RecordStore>();
         services.AddSingleton<RecordEnvironment>();
         services.AddSingleton<RecordService>();
+        RecordPlanRoutes.Register(services);
     }
 
     public static void Map(WebApplication app)
     {
+        RecordPlanRoutes.Map(app);
         app.MapPost("/api/record-repositories", (RecordRepositoryRequest request, RecordService records, SyncEngine engine) =>
             engine.Exclusive(() => Task.FromResult(records.Create(request))));
         app.MapDelete("/api/record-repositories/{id}", (string id, StateStore store, SyncEngine engine) =>

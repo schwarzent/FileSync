@@ -26,13 +26,13 @@ export async function repositoryHistory(context, profile) {
   };
   search.addEventListener('input', () => { page = 0; render(); });
   render();
-  const recover = result.interrupted ? button('恢复中断的发布', context.act(async () => {
+  const recover = result.interrupted ? button('继续完成中继写入', context.act(async () => {
     await context.api(`/profiles/${profile.id}/repository/recover`, {});
     await repositoryHistory(context, profile);
     await context.refresh();
   }), { class: 'primary' }) : null;
   showDialog(`${profile.name} · 仓库历史`, [
-    note('此处读取 OneDrive 仓库中的共享提交历史，两端均可查看。上传时间与文件原始时间分别记录。'),
+    note('查看 OneDrive 文件中继的提交记录及历史内容。提交时间是写入本机中继的时间，文件原始时间单独保留。'),
     result.interrupted ? note('检测到尚未完成的发布。先等待 OneDrive 同步；确认发布程序中断后再恢复发布。') : null,
     el('p', { class: 'path' }, profile.relayPath), search, rows
   ].filter(Boolean), [recover, button('刷新', context.act(() => repositoryHistory(context, profile))),

@@ -74,7 +74,7 @@ public sealed class RecordStore(StateStore state)
             new RecordReference(record.Id, package.Current.Hash), RecordJson.Options);
     }
 
-    private RecordEnvelope ReadEnvelope(RecordRepository repository, RecordReference reference)
+    public RecordEnvelope ReadEnvelope(RecordRepository repository, RecordReference reference)
     {
         StateStore.SafeId(reference.Id);
         var path = PathPolicy.Resolve(Root(repository), $"snapshots/{reference.Id}.json");
@@ -104,7 +104,7 @@ public sealed class RecordStore(StateStore state)
         WriteImmutable(path, envelope);
     }
 
-    private static void WriteImmutable<T>(string path, T value)
+    internal static void WriteImmutable<T>(string path, T value)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(value, RecordJson.Options);
         if (File.Exists(path))

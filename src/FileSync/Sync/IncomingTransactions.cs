@@ -26,15 +26,18 @@ public sealed class IncomingTransactions(IncomingServices services, SyncEngine e
             throw new UserError("共享忽略规则已改变，请重新预览。", 409);
         SyncScope.Validate(preparation.Before);
         SyncScope.Validate(preparation.After);
-        var current = await scanner.Scan(share.Path, token, patterns);
+        var current = preparation.PreserveCreationTime ? await scanner.ScanMetadata(share.Path, token, patterns) :
+            await scanner.Scan(share.Path, token, patterns);
         if (!FileScanner.Equal(current, preparation.Before))
             throw new UserError("远端文件夹自预览后已改变，请重新预览。", 409);
         if (!SyncScope.Preserve(preparation.After, current).Entries.SequenceEqual(preparation.After.Entries))
             throw new UserError("事务不能删除包含忽略内容的目录。", 409);
         var profile = new Profile(share.Id, "双向接收：" + share.Name, request.Owner, share.Id, share.Path, null)
-            { IgnorePatterns = preparation.IgnorePatterns };
+            { IgnorePatterns = preparation.IgnorePatterns, PreserveCreationTime = preparation.PreserveCreationTime };
         var plan = new SyncPlan(id, profile, preparation.Before, preparation.After,
-            Planner.Compare(preparation.Before, preparation.After), DateTime.UtcNow) { OwnerPeerId = request.Owner };
+            Planner.Compare(preparation.Before, preparation.After), DateTime.UtcNow)
+                { OwnerPeerId = request.Owner, SelectedPaths = preparation.SelectedPaths };
+        SelectedFileTimes.Validate(plan);
         Directory.CreateDirectory(store.VaultPath(id));
         JsonFiles.Write(Path.Combine(store.VaultPath(id), "plan.json"), plan);
         return Save(new(id, profile.Id, profile.Name, "staging", DateTime.UtcNow, plan.Changes));
@@ -134,7 +137,8 @@ public sealed class IncomingTransactions(IncomingServices services, SyncEngine e
     }
 
     private Task<Manifest> Scan(SyncPlan plan, CancellationToken token) =>
-        scanner.Scan(plan.Profile.TargetPath, token, plan.Local.IgnorePatterns);
+        plan.Profile.PreserveCreationTime ? scanner.ScanMetadata(plan.Profile.TargetPath, token, plan.Local.IgnorePatterns) :
+            scanner.Scan(plan.Profile.TargetPath, token, plan.Local.IgnorePatterns);
 
     private SyncPlan Read(IncomingRequest request)
     {

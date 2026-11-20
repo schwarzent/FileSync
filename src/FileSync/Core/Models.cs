@@ -18,6 +18,7 @@ public sealed record Profile(string Id, string Name, string PeerId, string Share
     public string? RelayPath { get; init; }
     public string UploadIgnorePatterns { get; init; } = "";
     public string PullIgnorePatterns { get; init; } = "";
+    public bool PreserveCreationTime { get; init; }
 }
 public static class SyncModes
 {
@@ -54,6 +55,9 @@ public sealed record SyncPlan(string Id, Profile Profile, Manifest Local, Manife
     public IReadOnlyList<Change> RemoteChanges { get; init; } = [];
     public IReadOnlyList<string> Conflicts { get; init; } = [];
     public string? OwnerPeerId { get; init; }
+    public Manifest? RemoteDesired { get; init; }
+    public IReadOnlyList<string>? SelectedPaths { get; init; }
+    public string? RecordPlanId { get; init; }
     [JsonIgnore]
     public Manifest Desired => Merged ?? Remote;
 }
@@ -63,6 +67,7 @@ public sealed record Revision(string Id, string ProfileId, string ProfileName, s
     public bool LocalWriteStarted { get; init; }
     public string Mode { get; init; } = SyncModes.OneWay;
     public IReadOnlyList<Change> RemoteChanges { get; init; } = [];
+    public string? RecordPlanId { get; init; }
 }
 public sealed record Invite(string Address, int Port, string Fingerprint, string Secret);
 public sealed record PairRequest(string Name, int Port, string Secret);

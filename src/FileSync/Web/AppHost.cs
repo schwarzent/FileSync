@@ -48,7 +48,7 @@ public static class AppHost
         var app = builder.Build();
         var discovery = app.Services.GetRequiredService<Discovery>();
         discovery.PeerPort = options.PeerPort;
-        discovery.Enabled = options.Discovery;
+        discovery.Enabled = options.Discovery && !options.LoopbackOnly;
         var security = app.Services.GetRequiredService<RequestSecurity>();
         app.Use(security.Invoke);
         PeerRoutes.Map(app);
