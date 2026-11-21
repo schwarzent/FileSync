@@ -12,10 +12,20 @@ function selectionState(result) {
     { value: 'other', label: `采用 ${result.other.deviceName}` }
   ];
   const update = () => { summary.textContent = `已选择 ${values.size} 项；其余差异暂不处理。`; };
+  const choose = (path, value) => {
+    if (value) values.set(path, value); else values.delete(path);
+    for (const control of controls.get(path) || []) control.value = value;
+  };
   const apply = value => {
-    for (const path of checked) {
-      if (value) values.set(path, value); else values.delete(path);
-      for (const control of controls.get(path) || []) control.value = value;
+    for (const path of checked) choose(path, value);
+    update();
+  };
+  const latest = () => {
+    for (const row of result.differences) {
+      if (!row.newerSide) continue;
+      checked.add(row.path);
+      choose(row.path, row.newerSide);
+      for (const check of checks.get(row.path) || []) check.checked = true;
     }
     update();
   };
@@ -25,14 +35,16 @@ function selectionState(result) {
     for (const [path, nodes] of checks) for (const node of nodes) node.checked = checked.has(path);
   };
   update();
-  return { values, checked, controls, checks, summary, options, update, apply, all };
+  return { values, checked, controls, checks, summary, options, update, apply, all, latest };
 }
 
 export function recordSelection(result) {
-  const { values, checked, controls, checks, summary, options, update, apply, all } = selectionState(result);
+  const { values, checked, controls, checks, summary, options, update, apply, all, latest } = selectionState(result);
   return {
     values: () => Object.fromEntries(values),
     toolbar: el('div', { class: 'selection-toolbar' }, [
+      button('勾选并采用较新版本', latest, { class: 'primary', disabled: !result.differences.some(row => row.newerSide),
+        title: '对所有分页中两端都有的同名文件，勾选并采用修改时间较新的一端。时间相同的冲突保留手动选择。' }),
       button('勾选全部差异', () => all(true)), button('清除勾选', () => all(false)),
       button(`勾选项采用 ${result.local.deviceName}`, () => apply('local')),
       button(`勾选项采用 ${result.other.deviceName}`, () => apply('other')),

@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-
 namespace FileSync.Core;
 
 public sealed class FileScanner
@@ -60,11 +58,7 @@ public sealed class FileScanner
             context.Pending.Push(path);
             return;
         }
-        await using var stream = OpenRead(path);
-        var modified = File.GetLastWriteTimeUtc(path).Ticks;
-        var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, token));
-        context.Entries.Add(new(relative, false, stream.Length, modified, hash)
-            { CreatedTicks = context.CreationTime ? File.GetCreationTimeUtc(path).Ticks : null });
+        context.Entries.Add(await ScanFileReader.Read(new(path, relative, context.CreationTime), token));
     }
 
     public static FileStream OpenRead(string path) => new(path, new FileStreamOptions

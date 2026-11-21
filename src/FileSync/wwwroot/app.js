@@ -66,7 +66,6 @@ async function refresh() {
     const previousHistory = JSON.stringify(context.history);
     state = await api('/status');
     if (!state.busy || currentPage === 'history') context.history = await api('/history');
-    if (wasBusy && !state.busy && !localOperation) toast('操作已结束，请查看版本记录。');
     if (previousSettings !== JSON.stringify(state.settings) || previousHistory !== JSON.stringify(context.history) ||
         wasBusy !== state.busy || currentPage === 'devices') render();
     else renderProgress();

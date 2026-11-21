@@ -47,6 +47,7 @@ public sealed record RecordDevice(string DeviceId, string DeviceName, string Rec
 }
 public sealed record RecordDifference(string Path, string Status)
 {
+    public string? NewerSide { get; init; }
     public Entry? Local { get; init; }
     public Entry? Other { get; init; }
     public string? LocalChange { get; init; }

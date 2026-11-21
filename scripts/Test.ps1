@@ -1,8 +1,8 @@
 #requires -Version 7.0
 param(
     [string]$Dotnet = 'dotnet', [string]$Go = 'go',
-    [ValidateSet('record-plans', 'coexistence', 'regression', 'cloud-records', 'resources')]
-    [string[]]$Suite = @('record-plans', 'coexistence', 'regression', 'cloud-records', 'resources')
+    [ValidateSet('scanner', 'record-plans', 'coexistence', 'regression', 'cloud-records', 'resources')]
+    [string[]]$Suite = @('scanner', 'record-plans', 'coexistence', 'regression', 'cloud-records', 'resources')
 )
 $ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSVersion.Major -ne 7) { throw '必须使用 PowerShell 7' }

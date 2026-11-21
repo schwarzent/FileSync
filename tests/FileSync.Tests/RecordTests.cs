@@ -24,6 +24,7 @@ public static class RecordTests
         {
             var fixture = await Initialize(nodes, token);
             await LocalAndLan(fixture, token);
+            await RecordScanTests.Run(fixture, token);
             await Changes(fixture, token);
             await RecordFaultTests.Run(fixture, token);
             await SharedFolder(nodes, token);

@@ -8,6 +8,12 @@ var root = Path.Combine(workspace, ".test-runs", Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);
 Console.WriteLine($"隔离验证目录：{root}");
 SecurityTests.Paths(root);
+if (suite == "scanner")
+{
+    await ScanFileTests.Run(root, deadline.Token);
+    Console.WriteLine("全部验证通过。");
+    return;
+}
 await using var first = new TestNode(Path.Combine(root, "node-a"));
 await using var second = new TestNode(Path.Combine(root, "node-b"));
 await first.App.StartAsync(deadline.Token);
@@ -39,6 +45,7 @@ switch (suite)
         await TransportCoexistenceTests.Run(new(first, second, root), deadline.Token);
         break;
     case "record-plans":
+        RecordComparisonTests.Run();
         await RecordPlanTests.Run(new(first, second, root), deadline.Token);
         break;
     default: throw new ArgumentException($"未知测试组：{suite}");

@@ -54,11 +54,15 @@ function permissionButton(context, repository) {
 }
 
 async function compareRecords(context, repository) {
-  const devices = await context.api(`/record-repositories/${repository.id}`);
-  const own = devices.find(d => d.deviceId === context.getState().deviceId);
-  if (!own) throw new Error('请先生成本机记录。');
-  const others = devices.filter(d => d.deviceId !== own.deviceId);
-  if (!others.length) throw new Error('尚无另一台设备的记录，请先交换局域网记录或等待 OneDrive 同步。');
+  const devices = await comparisonDevices(context, repository);
+  const others = devices.filter(d => d.deviceId !== context.getState().deviceId);
+  if (!others.length) {
+    showDialog(`${repository.name} · 等待对方清单`, [
+      note('本机清单已就绪。请在另一台电脑扫描并更新清单，再通过 OneDrive 或局域网交换清单。'),
+      el('p', {}, '收到对方清单后，再点击“比较清单并制定方案”。')
+    ], [button('关闭', () => document.querySelector('#modal').close())]);
+    return;
+  }
   const choice = select(others.map(d => ({ value: d.deviceId, label: `${d.deviceName} · ${date(d.recordedUtc)}` })));
   const body = el('div');
   let result;
@@ -81,6 +85,19 @@ async function compareRecords(context, repository) {
     field('对比设备', choice), body
   ], [button('关闭', () => document.querySelector('#modal').close()), preview]);
   await load();
+}
+
+async function comparisonDevices(context, repository) {
+  const endpoint = `/record-repositories/${repository.id}`;
+  const devices = await context.api(endpoint);
+  if (devices.some(d => d.deviceId === context.getState().deviceId)) return devices;
+  const dialog = showDialog(`${repository.name} · 首次生成本机清单`, [
+    note('正在扫描本机资料并生成清单，完成后继续比较。只读取资料，不复制或修改文件。')
+  ]);
+  try {
+    await context.api(`${endpoint}/generate`, {});
+    return await context.api(endpoint);
+  } finally { dialog.close(); }
 }
 
 function comparisonView(result, selection) {

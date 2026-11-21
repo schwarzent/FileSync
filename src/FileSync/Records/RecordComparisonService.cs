@@ -16,7 +16,7 @@ public static class RecordComparisonService
         {
             var a = left.GetValueOrDefault(path);
             var b = right.GetValueOrDefault(path);
-            return new RecordDifference(path, Status(a, b)) { Local = a, Other = b,
+            return new RecordDifference(path, Status(a, b)) { Local = a, Other = b, NewerSide = NewerSide(a, b),
                 LocalChange = leftChanges.GetValueOrDefault(path)?.Kind, OtherChange = rightChanges.GetValueOrDefault(path)?.Kind };
         }).ToArray();
         return new(RecordJson.Describe(local), RecordJson.Describe(other), rows.Count(r => r.Status == "same"))
@@ -39,6 +39,13 @@ public static class RecordComparisonService
     {
         if (local is null && other is null) return "same";
         return local is null ? "other-only" : "local-only";
+    }
+
+    private static string? NewerSide(Entry? local, Entry? other)
+    {
+        if (local is not { Directory: false } || other is not { Directory: false } ||
+            local.Path != other.Path || local.ModifiedTicks == other.ModifiedTicks) return null;
+        return local.ModifiedTicks > other.ModifiedTicks ? "local" : "other";
     }
 
     private static bool SameContent(Entry local, Entry other) =>
